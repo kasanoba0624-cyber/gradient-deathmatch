@@ -223,7 +223,7 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
     <div class="sheet panel">
       <h2 id="pauseTitle">일시정지</h2>
       <div class="cols"><div>
-      <div class="set"><label for="sSens">마우스 감도</label><input id="sSens" type="range" min="0.05" max="2" step="0.005" value="0.4"><input id="nSens" class="num" type="number" min="0.01" max="10" step="0.001" value="0.4" aria-label="마우스 감도 값"></div>
+      <div class="set"><label for="sSens">마우스 감도</label><input id="sSens" type="range" min="0.05" max="4" step="0.005" value="1"><input id="nSens" class="num" type="number" min="0.01" max="10" step="0.001" value="1" aria-label="마우스 감도 값"></div>
       <p class="hint">발로란트 감도 값을 그대로 넣으면 같은 회전 속도예요 (크롬·엣지).</p>
       <div class="set"><label for="sZs">조준 감도 배율</label><input id="sZs" type="range" min="0.3" max="2" step="0.01" value="1"><output id="oZs">1.00</output></div>
       <div class="set"><label for="sTs">터치 감도</label><input id="sTs" type="range" min="20" max="300" value="100"><output id="oTs">100</output></div>
@@ -2456,7 +2456,7 @@ const ROUND_TIME = 300;
 const G = {
   screen: 'boot', mode: null, now: 0, frame: 0, players: [], bots: [], me: null, map: null, mapMesh: null, charMesh: null, stage: null, display: [],
   match: { state: 'idle', time: ROUND_TIME, items: [], grenades: [], rockets: [], rid: 0, seed: 0, endT: 0, wT: 9, gT: 6, nextItem: 1, hn: 0, lastSec: -1, taken: new Set() },
-  profile: { name: '플레이어', c1: '#ff5aa8', c2: '#3d6bff' }, settings: { sens: 0.4, zsens: 1, tsens: 100, swapFire: true, v2: true, view: DEFAULT_VIEW, xcol: 1, vol: 80, mus: 55, sfx: 90, quality: 2 },
+  profile: { name: '플레이어', c1: '#ff5aa8', c2: '#3d6bff' }, settings: { sens: 1, zsens: 1, tsens: 100, swapFire: true, v2: true, v3: true, view: DEFAULT_VIEW, xcol: 1, vol: 80, mus: 55, sfx: 90, quality: 2 },
   cam: { eye: [0, 2, 6], target: [0, 1, 0], up: [0, 1, 0], fov: 0.9, near: 0.12, far: 700 }, eyeBase: [0, 0, 0], eyeOK: false, fpv: false, shotMinT: 0, vmOK: false, vmMuzzle: [0, 0, 0], zoomNow: 1, hipFov: 1.2, scoped: false, vmKick: 0, swayX: 0, swayY: 0, bobT: 0, prevYaw: 0, prevPitch: 0, camKick: 0, camDist: 3, camH: 1.62, nearItem: null, results: null, dropHover: null, deadT: 0, killer: null, pulseR: 0, barrierT: 0, slowT: 0, autoQ: true, ft: 16, ftN: 0,
   view: M4.create(), sc: { cam: null, chars: [], props: [], lights: [], parts: null, mapMesh: null, shadowFocus: [0, 0, 0], shadowRadius: 40 },
 
@@ -2465,7 +2465,7 @@ const G = {
       const p = store.get('gdm.profile', null); if (p && typeof p === 'object') { if (typeof p.name === 'string') this.profile.name = p.name.slice(0, 12) || '플레이어'; if (/^#[0-9a-f]{6}$/i.test(p.c1)) this.profile.c1 = p.c1; if (/^#[0-9a-f]{6}$/i.test(p.c2)) this.profile.c2 = p.c2; }
       else { const s = randomSkin(); this.profile.c1 = s[0]; this.profile.c2 = s[1]; }
       const touchDev = matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches; this.settings.quality = touchDev ? 1 : 2;
-      const st = store.get('gdm.settings', null); if (st && typeof st === 'object') { for (const k of ['sens', 'zsens', 'tsens', 'xcol', 'vol', 'mus', 'sfx', 'quality']) if (typeof st[k] === 'number' && isFinite(st[k])) this.settings[k] = st[k]; this.settings.swapFire = st.v2 ? st.swapFire !== false : true; this.settings.view = st.view === 'tps' || st.view === 'fps' ? st.view : DEFAULT_VIEW; if (!(this.settings.sens > 0 && this.settings.sens <= 10)) this.settings.sens = 0.4; this.settings.xcol = clamp(this.settings.xcol | 0, 0, 6); this.autoQ = false; }
+      const st = store.get('gdm.settings', null); if (st && typeof st === 'object') { for (const k of ['sens', 'zsens', 'tsens', 'xcol', 'vol', 'mus', 'sfx', 'quality']) if (typeof st[k] === 'number' && isFinite(st[k])) this.settings[k] = st[k]; this.settings.swapFire = st.v2 ? st.swapFire !== false : true; this.settings.view = st.view === 'tps' || st.view === 'fps' ? st.view : DEFAULT_VIEW; if (!(this.settings.sens > 0 && this.settings.sens <= 10)) this.settings.sens = 1; if (!st.v3 && Math.abs(this.settings.sens - 0.4) < 1e-6) this.settings.sens = 1; this.settings.xcol = clamp(this.settings.xcol | 0, 0, 6); this.autoQ = false; }
       this.settings.quality = clamp(this.settings.quality | 0, 0, 2);
       this.setQ(); R.init($('gl')); loadAssets();
       const m = Assets.mesh; this.charMesh = R.charMesh(m.pos, m.nrm, m.ski, m.skw, m.idx); buildGunMeshes(); computeGunOffset(); R.armMask = new Float32Array(NBONES); Assets.bones.forEach((b, i) => { if (/(Arm|Hand)/.test(b.name)) R.armMask[i] = 1; });

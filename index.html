@@ -2420,7 +2420,7 @@ const UI = {
     if (G.mode === 'online') {
       if (Net.status === 'connecting') { t = '서버에 연결하는 중…'; ok = false; }
       else if (Net.status === 'fail' || Net.status === 'lost' || Net.status === 'full' || Net.status === 'off' || Net.status === 'denied') {
-        if (WEB_BUILD || Net.mq || !(window.claude && window.claude.use)) { t = Net.status === 'full' ? '서버 인원이 가득 찼어요. 잠시 후 다시 연결해 주세요.' : Net.status === 'lost' ? '서버 연결이 끊겼어요. 다시 연결을 눌러 주세요.' : '서버에 연결할 수 없어요. 잠시 후 다시 연결해 주세요.' + (Net.mqErr && Net.mqErr.length ? `<br><small>원인 코드: ${Net.mqErr.map((e, i) => 'ABCDE'[i] + '-' + e).join(' · ')}</small>` : ''); ok = true; label = '다시 연결'; }
+        if (WEB_BUILD || Net.mq || !(window.claude && window.claude.use)) { t = Net.status === 'full' ? '서버 인원이 가득 찼어요. 잠시 후 다시 연결해 주세요.' : G.rcN ? `서버 연결이 끊겨서 다시 연결하는 중… (${G.rcN}번째)` : Net.status === 'lost' ? '서버 연결이 끊겼어요. 다시 연결을 눌러 주세요.' : '서버에 연결할 수 없어요. 잠시 후 다시 연결해 주세요.' + (Net.mqErr && Net.mqErr.length ? `<br><small>원인 코드: ${Net.mqErr.map((e, i) => 'ABCDE'[i] + '-' + e).join(' · ')}</small>` : ''); ok = true; label = '다시 연결'; }
         else if (Net.status === 'denied') { t = '<b>이 기기는 온라인 방에 들어갈 수 없어요.</b> Claude 페이지의 온라인은 링크 주인이 공유 메뉴에서 <b>이 사람의 Claude 계정을 초대</b>하고, 그 계정으로 로그인해서 열어야 들어가져요. 공개 링크로만 들어오면 막혀요.'; ok = false; }
         else { t = '온라인 연결이 끊겼어요. 모드 선택으로 나갔다가 다시 들어와 주세요.'; ok = false; }
       }
@@ -2509,11 +2509,20 @@ const G = {
     this.toLobby();
     if (mode === 'online') this.connectOnline();
   },
-  connectOnline() { const m = this.match; Net.connect().then((ok) => { if (ok && Net.isHost && m.state === 'idle') m.state = 'wait'; }); },
+  connectOnline() { const m = this.match; clearTimeout(this._rcT); this.rcN = 0; Net.connect().then((ok) => { if (ok && Net.isHost && m.state === 'idle') m.state = 'wait'; else if (!ok && (WEB_BUILD || Net.mq) && Net.status !== 'full') this.autoReconnect(1); }); },
+  // a dropped or refused connection (server restarting, wifi blip) retries on its own for ~1 minute
+  autoReconnect(n) {
+    clearTimeout(this._rcT); if (this.mode !== 'online' || n > 15) { this.rcN = 0; return; } this.rcN = n;
+    this._rcT = setTimeout(() => {
+      if (this.mode !== 'online' || Net.on || Net.status === 'connecting') { this.rcN = 0; return; }
+      Net.connect().then((ok) => { if (ok) { this.rcN = 0; if (Net.isHost && this.match.state === 'idle') this.match.state = 'wait'; } else if (Net.status !== 'full') this.autoReconnect(n + 1); else this.rcN = 0; });
+    }, n <= 1 ? 1500 : 4000);
+  },
   onNetLost() {
     if (this.mode !== 'online') return; const m = this.match; m.state = 'idle'; m.items = []; m.grenades = []; m.rockets = []; this.bots = [];
     if (this.me) this.me.state = 'out'; this.players = this.me ? [this.me] : [];
     if (this.screen === 'play' || this.screen === 'drop' || this.screen === 'dead') this.toLobby();
+    if (Net.status === 'lost' && (WEB_BUILD || Net.mq)) this.autoReconnect(1);
   },
   toLobby() {
     this.screen = 'lobby'; const d = this.mkDisplay(this.profile.name, this.profile.c1, this.profile.c2, 0, 0.6, -1.0, 0, 'Rifle_Idle', false); this.display = [d];

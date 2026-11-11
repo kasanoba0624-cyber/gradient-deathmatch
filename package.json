@@ -1,0 +1,13 @@
+{
+  "name": "gradient-deathmatch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "그라데이션 데스매치 - 웹 버전 (게임 페이지 + 실시간 대전 서버)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

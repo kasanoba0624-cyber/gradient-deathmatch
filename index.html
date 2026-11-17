@@ -67,6 +67,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-off
 #hue::-moz-range-thumb{width:18px;height:24px;border-radius:7px;background:#fff;border:2px solid #111;cursor:pointer}
 .sw{display:grid;grid-template-columns:repeat(8,1fr);gap:6px} .sw button{aspect-ratio:1;border-radius:8px;border:1px solid rgba(255,255,255,.25);min-height:26px}
 #netStat{font-size:13px;color:var(--muted);min-height:20px} #netStat b{color:var(--fg)}
+.mpick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.mpick button{min-height:46px;border-radius:10px;padding:6px 4px;background:rgba(255,255,255,.06);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--muted);line-height:1.15}
+.mpick button b{font-size:13px;color:var(--fg);font-weight:700} .mpick button small{font-size:10.5px}
+.mpick button[aria-pressed="true"]{background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.1));border-color:rgba(255,255,255,.55);color:var(--fg)}
+#modeDesc{margin:4px 0 0;font-size:12.5px;line-height:1.45;color:var(--muted)} #modeDesc b{color:var(--fg)}
 .two{display:grid;grid-template-columns:auto 1fr;gap:10px}
 /* ---------- drop ---------- */
 #scrDrop{display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
@@ -77,6 +82,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-off
 #hud{font-family:var(--num)}
 #hud>*{position:absolute;pointer-events:none}
 #timer{top:12px;left:50%;transform:translateX(-50%);text-align:center;padding:6px 18px;border-radius:12px;min-width:120px}
+#modebar{top:76px;left:50%;transform:translateX(-50%);text-align:center;padding:5px 14px;border-radius:11px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:4px 8px;max-width:min(560px,70vw);font-family:var(--ui)}
+#modebar .tm{font-family:var(--num);font-size:20px;font-weight:700;padding:0 4px;border-radius:6px} #modebar .tm.r,.tscore .r{color:#ff6b78} #modebar .tm.b,.tscore .b{color:#6aa8ff} #modebar .tm.me{background:rgba(255,255,255,.12)}
+#modebar .vs,.tscore .vs{color:var(--muted);font-weight:700} #modebar .gem{font-family:var(--num);font-size:20px;font-weight:700;color:#8fe3ff} #modebar .pt{font-family:var(--num);font-size:20px;font-weight:700;color:#ffe14d}
+#modebar small{flex-basis:100%;font-size:11.5px;color:var(--muted)} #modebar small b{color:var(--fg)} #modebar .ok{color:#7dff9a} #modebar .warn{color:#ffb14d}
+.tscore{display:flex;justify-content:center;gap:10px;font-family:var(--num);font-size:24px;font-weight:700;margin:0 0 8px} .board h3 small{font-family:var(--ui);font-size:12px;color:var(--muted);margin-left:6px}
 #timer b{display:block;font-size:26px;line-height:1.05;font-variant-numeric:tabular-nums} #timer span{font-family:var(--ui);font-size:11.5px;color:var(--muted)} #timer.hot b{color:var(--bad)}
 #mini{top:12px;left:var(--gl);width:132px;height:132px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:rgba(8,9,15,.55)} #mini canvas{width:100%;height:100%;display:block}
 #feed{top:12px;right:var(--gr);display:flex;flex-direction:column;align-items:flex-end;gap:5px;font-family:var(--ui);font-size:13px;max-width:44vw}
@@ -103,7 +113,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-off
 #toast{left:50%;top:24%;transform:translateX(-50%);font-family:var(--display);font-size:clamp(22px,4.6vh,40px);text-shadow:0 3px 14px rgba(0,0,0,.7);opacity:0;white-space:nowrap;transition:opacity .2s}
 #banner{left:50%;top:38%;transform:translate(-50%,-50%);font-family:var(--display);font-size:clamp(34px,9vh,88px);text-shadow:0 4px 24px rgba(0,0,0,.7);opacity:0;white-space:nowrap;text-align:center}
 #dmgdir{left:50%;top:50%;width:0;height:0} #dmgdir i{position:absolute;left:-40px;top:calc(-1 * min(30vh,190px));width:80px;height:14px;border-radius:50% 50% 0 0;background:radial-gradient(ellipse at 50% 100%,rgba(255,60,80,.95),transparent 70%);transform-origin:40px min(30vh,190px);opacity:0}
-#tags{inset:0} #tags span{position:absolute;transform:translate(-50%,-100%);font-family:var(--ui);font-size:12px;font-weight:700;padding:1px 7px;border-radius:7px;background:rgba(8,9,15,.55);white-space:nowrap;border-bottom:2px solid #fff}
+#tags{inset:0} #tags span{position:absolute;transform:translate(-50%,-100%);font-family:var(--ui);font-size:12px;font-weight:700;padding:1px 7px;border-radius:7px;background:rgba(8,9,15,.55);white-space:nowrap;border-bottom:2px solid #fff} #tags span.ally{background:rgba(30,60,120,.6)}
 #score{inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,9,15,.5)}
 .board{width:min(560px,92vw);max-height:84%;overflow:auto;padding:14px 16px;font-family:var(--ui)}
 .board h3{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 8px}
@@ -160,6 +170,7 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
     <div id="hitm"></div>
     <div id="mini"><canvas id="miniC" width="264" height="264"></canvas></div>
     <div id="timer" class="panel"><b id="tClock">5:00</b><span id="tMode">로컬</span></div>
+    <div id="modebar" class="panel" hidden></div>
     <div id="feed"></div>
     <div id="vital"><div id="kad"></div><div id="hpnum">100</div><div id="hpbar"><i></i></div></div>
     <div id="ammo"><div class="w" id="wName">피스톨</div><div class="n" id="wAmmo">12<small> / ∞</small></div><div id="nades"><i></i><i></i><i></i></div></div>
@@ -186,9 +197,9 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
   </div>
 
   <section id="scrTitle" class="layer" hidden>
-    <span class="eyebrow">Free-for-all · 5분 · 10명</span>
+    <span class="eyebrow">5가지 모드 · 5분 · 10명</span>
     <h1><b>그라데이션</b><br>데스매치</h1>
-    <p>단색 아레나에 뛰어내려 5분 동안 싸웁니다. 총은 주워서 바꾸고, 수류탄은 아껴 두세요.</p>
+    <p>단색 아레나에 뛰어내려 5분 동안 싸웁니다. 개인전, 팀 데스매치, 젬 컬렉트, 점령전, 무기 진화전 중에서 골라요.</p>
     <div class="modes">
       <button class="mode" id="bLocal"><strong>로컬</strong><span>나 1명 vs AI 9명</span></button>
       <button class="mode" id="bOnline"><strong>온라인</strong><span>지금 접속한 모두와 실시간 대전</span></button>
@@ -206,6 +217,7 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
       </div><div class="lcol">
       <input id="hue" type="range" min="0" max="360" value="0" aria-label="색상">
       <div class="sw" id="swatches"></div>
+      <div class="field"><label>게임 모드</label><div id="modePick" class="mpick" role="group" aria-label="게임 모드"></div><p id="modeDesc"></p></div>
       <div id="netStat"></div>
       <div class="two"><button class="btn" id="bRandom">랜덤</button><button class="btn primary" id="bReady">준비</button></div>
       <button class="link" id="bBack">← 모드 선택으로</button>
@@ -1368,6 +1380,7 @@ const WEAPONS = {
   shotgun: { id: 3, key: 'shotgun', name: '샷건', dmg: 17, head: 1.5, pellets: 12, rpm: 210, auto: true, mag: 7, reserve: 21, reload: 2.2, err: 0.058, adsErr: 0.058, runErr: 0.012, airErr: 0.04, grow: 0, growMax: 0, kickV: 0.028, kickH: 0.006, climb: 2, recov: 0.4, zoom: 1, falloff: [8, 22, 0.35], col: [1.0, 0.45, 0.15], muz: 0.74, snd: 'shotgun', botRange: 7 },
   minigun: { id: 5, key: 'minigun', name: '미니건', power: true, heavy: true, spin: 0.5, dmg: 15, head: 2, pellets: 1, rpm: 1500, auto: true, mag: 160, reserve: 0, reload: 3, err: 0.022, adsErr: 0.02, runErr: 0.03, airErr: 0.08, grow: 0.0006, growMax: 0.016, kickV: 0.0016, kickH: 0.004, climb: 12, recov: 0.3, zoom: 1, falloff: [25, 50, 0.7], col: [1.0, 0.25, 0.2], muz: 0.95, snd: 'minigun', botRange: 16 },
   rpg: { id: 6, key: 'rpg', name: 'RPG', power: true, rocket: true, dmg: 140, head: 1, pellets: 1, rpm: 120, auto: true, mag: 1, reserve: 5, reload: 1.1, err: 0.004, adsErr: 0.002, runErr: 0.03, airErr: 0.06, grow: 0, growMax: 0, kickV: 0.07, kickH: 0.004, climb: 1, recov: 0.6, zoom: 1.2, falloff: [300, 400, 1], col: [1.0, 0.62, 0.1], muz: 0.72, snd: 'rpg', botRange: 20 },
+  golden: { id: 7, key: 'golden', name: '황금 권총', dmg: 250, head: 1, pellets: 1, rpm: 160, auto: false, mag: 1, reserve: Infinity, reload: 0.9, err: 0.003, adsErr: 0.0015, runErr: 0.02, airErr: 0.08, grow: 0, growMax: 0, kickV: 0.03, kickH: 0.003, climb: 1, recov: 0.4, zoom: 1.2, falloff: [300, 400, 1], col: [1.0, 0.78, 0.18], muz: 0.34, snd: 'pistol', botRange: 18 },
   sniper: { id: 4, key: 'sniper', name: '스나이퍼', dmg: 150, head: 1.7, pellets: 1, rpm: 36, auto: false, mag: 5, reserve: 10, reload: 3.7, err: 0.09, adsErr: 0, runErr: 0.12, airErr: 0.2, grow: 0, growMax: 0, kickV: 0.05, kickH: 0.004, climb: 1, recov: 0.6, zoom: 2.5, scope: true, falloff: [300, 400, 1], col: [0.95, 0.3, 1.0], muz: 1.05, snd: 'sniper', botRange: 38 },
 };
 // recoil pattern for shot n (0 = first shot): [pitch up, yaw] in radians
@@ -1377,7 +1390,7 @@ function recoilAt(w, n) {
   const h = n > c ? Math.sin((n - c) * 0.85 + w.id) * w.kickH * Math.min(1, (n - c) / 2.5) * 3.2 : Math.sin(n * 1.7) * w.kickH * 0.25;
   return [v, h];
 }
-const WEAPON_LIST = [WEAPONS.pistol, WEAPONS.smg, WEAPONS.rifle, WEAPONS.shotgun, WEAPONS.sniper, WEAPONS.minigun, WEAPONS.rpg];
+const WEAPON_LIST = [WEAPONS.pistol, WEAPONS.smg, WEAPONS.rifle, WEAPONS.shotgun, WEAPONS.sniper, WEAPONS.minigun, WEAPONS.rpg, WEAPONS.golden];
 const POWER = ['minigun', 'rpg'], POWER_CHANCE = 0.07, MAX_WID = WEAPON_LIST.length - 1;
 const SPAWNABLE = ['smg', 'rifle', 'shotgun', 'sniper'];
 const HEAD_MULT = 1.7, GRENADE_MAX = 3, GRENADE_COL = [0.45, 1.0, 0.35];
@@ -1408,11 +1421,18 @@ function buildGunMeshes() {
     for (let i = 0; i < 6; i++) { const a = i / 6 * TAU, x = Math.cos(a) * 0.032, y = 0.015 + Math.sin(a) * 0.032; o.push([x - 0.011, y - 0.011, 0.2, x + 0.011, y + 0.011, 0.95, D]); }
     defs.minigun = o;
   }
+  { const Au = [0.95, 0.72, 0.16], Ad = [0.55, 0.38, 0.08]; defs.golden = [[-0.018, 0.02, -0.07, 0.018, 0.075, 0.2, Au], [-0.016, -0.09, -0.07, 0.016, 0.03, -0.01, Ad], [-0.02, 0.075, -0.04, 0.02, 0.085, 0.16, [1, 0.9, 0.5]], [-0.008, 0.035, 0.2, 0.008, 0.06, 0.23, Ad]]; }
   defs.rpg = [[-0.05, -0.02, -0.5, 0.05, 0.08, 0.5, [0.2, 0.26, 0.14]], [-0.06, -0.03, -0.56, 0.06, 0.09, -0.48, D], [-0.018, -0.13, -0.02, 0.018, -0.02, 0.04, D], [-0.018, -0.13, 0.16, 0.018, -0.02, 0.22, D], [-0.03, 0.08, 0.04, 0.03, 0.12, 0.12, D],
     [-0.032, 0.0, 0.5, 0.032, 0.06, 0.62, acc('rpg')], [-0.02, 0.01, 0.62, 0.02, 0.05, 0.72, acc('rpg')], [-0.052, -0.022, 0.3, 0.052, 0.082, 0.34, acc('rpg')]];
   for (const k in defs) GunMeshes[k] = R.mesh(boxMeshData(defs[k]), [[0, 3], [1, 3], [2, 3]]);
   const gc = [0.16, 0.34, 0.14];
   GunMeshes.grenade = R.mesh(boxMeshData([[-0.07, -0.08, -0.07, 0.07, 0.08, 0.07, gc], [-0.085, -0.03, -0.085, 0.085, 0.03, 0.085, [0.1, 0.22, 0.09]], [-0.025, 0.08, -0.025, 0.025, 0.13, 0.025, [0.5, 0.5, 0.5]], [0.025, 0.09, -0.012, 0.07, 0.11, 0.012, [0.8, 0.7, 0.2]]]), [[0, 3], [1, 3], [2, 3]]);
+  { // gem: a stretched octahedron with flat-shaded facets
+    const v = [], top = [0, 0.34, 0], bot = [0, -0.34, 0], ring = []; for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ring.push([Math.cos(a) * 0.22, 0.04, Math.sin(a) * 0.22]); }
+    const tri = (a, b, c, col) => { const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2]; let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l; for (const q of [a, b, c]) v.push(q[0], q[1], q[2], nx, ny, nz, col[0], col[1], col[2]); };
+    for (let i = 0; i < 6; i++) { const a = ring[i], b = ring[(i + 1) % 6], k = i & 1 ? 0.8 : 1; tri(top, b, a, [0.75 * k, 0.95 * k, 1.0 * k]); tri(bot, a, b, [0.45 * k, 0.55 * k, 0.95 * k]); }
+    GunMeshes.gem = R.mesh(new Float32Array(v), [[0, 3], [1, 3], [2, 3]]);
+  }
   GunMeshes.pad = R.mesh(boxMeshData([[-0.6, 0, -0.6, 0.6, 0.06, 0.6, [0.09, 0.09, 0.11]], [-0.45, 0.06, -0.45, 0.45, 0.09, 0.45, [0.8, 0.8, 0.8]]]), [[0, 3], [1, 3], [2, 3]]);
 }
 
@@ -1594,7 +1614,7 @@ class Player {
   constructor(kind, name, c1, c2) {
     this.id = NEXT_ID++; this.kind = kind; this.name = name; this.pos = [0, 0, 0]; this.vel = [0, 0, 0]; this.yaw = 0; this.pitch = 0;
     this.anim = new Animator(); this.model = M4.create(); this.gunM = M4.create(); this.headPos = [0, 1.6, 0]; this.muzzle = [0, 1.4, 0];
-    this.state = 'out'; this.hp = 100; this.kills = 0; this.assists = 0; this.deaths = 0; this.grenades = 0;
+    this.state = 'out'; this.hp = 100; this.kills = 0; this.assists = 0; this.deaths = 0; this.grenades = 0; this.team = -1; this.gems = 0; this.pts = 0; this.lvl = 0;
     this.inp = { f: 0, s: 0, fire: false, aim: false, jump: false, crouch: false, sprint: false, reload: false, grenade: false, swap: false, melee: false };
     this.prev = {}; this.c1 = [1, 1, 1]; this.c2 = [1, 1, 1]; this.setColors(c1, c2);
     this.rd = { mesh: null, model: this.model, skin: this.anim.skin, c1: this.c1, c2: this.c2, flash: 0, alpha: 1, glow: 0, hidden: false, noShadow: false };
@@ -1615,7 +1635,7 @@ class Player {
   get inWorld() { return this.state === 'live' || this.state === 'drop' || this.state === 'dead'; }
   spawnDrop(x, z) {
     const lim = ARENA - 1.5; this.pos[0] = clamp(x, -lim, lim); this.pos[2] = clamp(z, -lim, lim); this.pos[1] = 58; this.vel[0] = 0; this.vel[1] = -6; this.vel[2] = 0;
-    this.state = 'drop'; this.hp = 100; this.setWeapon('pistol'); this.grenades = 0; this.clearTimers(); this.anim.reset(); this.invuln = 99; this.rd.alpha = 1; this.rd.hidden = false; this.visY = this.pos[1];
+    this.state = 'drop'; this.hp = 100; this.setWeapon('pistol'); GM.spawnWeapon(this); this.grenades = 0; this.clearTimers(); this.anim.reset(); this.invuln = 99; this.rd.alpha = 1; this.rd.hidden = false; this.visY = this.pos[1];
     if (G.map) G.map.collide(this.pos, P_RADIUS + 0.2, 60);
     Snd.play('spawn', this.pos, 0.7);
   }
@@ -1767,7 +1787,7 @@ class Player {
     out.head = head; return best;
   }
   damage(amt, attacker, head, wkey, dir) {
-    if (this.state !== 'live' || this.invuln > 0 || G.match.state !== 'play') return false;
+    if (this.state !== 'live' || this.invuln > 0 || G.match.state !== 'play' || GM.ally(attacker, this)) return false;
     if (attacker && attacker.kind === 'bot') amt *= this.kind === 'bot' ? 1.15 : 0.6;
     this.hp -= amt; this.sinceHit = 0; this.flash = 1;
     if (attacker && attacker !== this) { const k = attacker.id, e = this.damagers[k] || (this.damagers[k] = { p: attacker, d: 0, t: 0 }); e.d += amt; e.t = G.now; this.lastAttacker = attacker; this.lastAttackT = G.now; }
@@ -1835,7 +1855,7 @@ class Bot {
     if (this.thinkT <= 0) {
       this.thinkT = 0.14 + rand(0.08); let best = null, bs = 1e9; const ey = p.eyeY(), fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
       for (const q of G.players) {
-        if (q === p || q.state !== 'live') continue; const dx = q.pos[0] - p.pos[0], dz = q.pos[2] - p.pos[2], d = Math.hypot(dx, dz); if (d > 46) continue;
+        if (q === p || q.state !== 'live' || GM.ally(q, p)) continue; const dx = q.pos[0] - p.pos[0], dz = q.pos[2] - p.pos[2], d = Math.hypot(dx, dz); if (d > 46) continue;
         const facing = (dx * fx + dz * fz) / (d || 1), aware = d < 6 || facing > 0.25 || (p.lastAttacker === q && now - p.lastAttackT < 3) || q.sinceFire < 0.5 && d < 30;
         if (!aware || q.invuln > 0) continue; if (!map.los(p.pos[0], ey, p.pos[2], q.pos[0], q.pos[1] + 1.2, q.pos[2])) continue;
         const provoked = (p.lastAttacker === q && now - p.lastAttackT < 4) || d < 6;
@@ -1864,6 +1884,7 @@ class Bot {
         else inp.fire = p.fireCd <= 0 && Math.random() < dt * lerp(2.2, 5, this.skill);
       }
       if (inp.fire && d > 3) { mvx = ux * Math.max(0, app) * 0.2; mvz = uz * Math.max(0, app) * 0.2; }
+      const og = GM.botPull(p); if (og) { const ox = og[0] - p.pos[0], oz = og[1] - p.pos[2], ol = Math.hypot(ox, oz) || 1; mvx = mvx * 0.45 + ox / ol; mvz = mvz * 0.45 + oz / ol; }
       if (w.rocket) this.wantPitch -= 0.04;
       inp.aim = d > 22 || w.scope;
       if (p.grenades > 0 && this.gT <= 0 && d > 8 && d < 26 && this.react <= 0) { p.pitch = Math.min(1.0, Math.atan2(ty, d) + 0.16 + d * 0.012); inp.grenade = true; this.gT = rand(14, 26); }
@@ -1875,7 +1896,9 @@ class Bot {
       this.goalT -= dt;
       if (!this.goal || this.goalT <= 0) {
         this.goalT = rand(9, 16); this.path = null; this.goal = null;
+        const mg = GM.botGoal(p);
         if (this.lastSeen && now - this.seenT < 5) { this.goal = this.lastSeen; this.lastSeen = null; }
+        else if (mg) { this.goal = mg; this.goalT = rand(4, 7); }
         else {
           let it = null, bd = 1e9; for (const i of G.match.items) { const d = Math.hypot(i.x - p.pos[0], i.z - p.pos[2]); const want = i.kind === 'grenade' ? (p.grenades < 2 && d < 30) : POWER.includes(i.kind) ? (!w.power && d < 45) : (w.key === 'pistol' || (d < 18 && Math.random() < 0.3)); if (want && d < bd) { bd = d; it = i; } }
           if (it && Math.random() < 0.8) this.goal = [it.x, it.y, it.z]; else this.goal = map.randomSpot(null, [0, 0, 0]);
@@ -1975,7 +1998,7 @@ const Net = {
     const c1 = hexOk(c[0]) ? c[0] : '#ffffff', c2 = hexOk(c[1]) ? c[1] : '#888888';
     if (!pl) { pl = pe.player = new Player('remote', name, c1, c2); pl.net = pe.id; pl.rd.mesh = G.charMesh; G.players.push(pl); G.feed(`${name} 님이 접속했어요`); }
     if (pl.name !== name) pl.name = name; if (pl.hex1 !== c1 || pl.hex2 !== c2) pl.setColors(c1, c2);
-    pl.kills = this.num(pr.k, 0, 999, 0) | 0; pl.assists = this.num(pr.a, 0, 999, 0) | 0; pl.deaths = this.num(pr.d, 0, 999, 0) | 0;
+    pl.kills = this.num(pr.k, 0, 999, 0) | 0; pl.assists = this.num(pr.a, 0, 999, 0) | 0; pl.deaths = this.num(pr.d, 0, 999, 0) | 0; GM.applyPresence(pl, pr);
     const wi = this.num(pr.w, 0, MAX_WID, 0) | 0; if (pl.weapon.id !== wi) pl.weapon = WEAPON_LIST[wi];
     const ph = pr.ph, f = this.num(pr.f, 0, 255, 0) | 0;
     pe.crouch = !!(f & 1); pe.aim = !!(f & 2); pe.ground = !!(f & 4); pe.sprint = !!(f & 8);
@@ -1993,6 +2016,7 @@ const Net = {
   },
   handle(pe, pl, e) {
     const t = e[1], N = (i, a, b) => this.num(e[i], a, b, 0);
+    if (GM.handle(pe, pl, e)) return;
     if (t === 'sh') {
       const w = WEAPON_LIST[N(2, 0, MAX_WID) | 0], ex = N(3, -500, 500), ey = N(4, -100, 500), ez = N(5, -500, 500); pl.weapon = w; pl.updateModel(); pl.sinceFire = 0; const m = pl.muzzle;
       const n = w.pellets > 1 ? 6 : 1; for (let i = 0; i < n; i++) { const j = i ? 1.2 : 0; FX.beam(m[0], m[1], m[2], ex + rand(-j, j), ey + rand(-j, j), ez + rand(-j, j), [w.col[0] * 3 + 1.2, w.col[1] * 3 + 1, w.col[2] * 3 + 0.6], w.key === 'sniper' ? 0.06 : 0.028, w.key === 'sniper' ? 900 : 480, w.key === 'sniper' ? 40 : 10); }
@@ -2007,7 +2031,7 @@ const Net = {
     else if (t === 'gr') G.addGrenade(N(2, -60, 60), N(3, -5, 90), N(4, -60, 60), N(5, -40, 40), N(6, -40, 40), N(7, -40, 40), pl, false);
     else if (t === 'dn') {
       const killer = e[2] === this.me ? G.me : (this.peers.get(e[2]) || {}).player || null, as = Array.isArray(e[3]) ? e[3] : [], w = WEAPON_LIST[Math.min(N(4, 0, 9) | 0, MAX_WID)];
-      if (killer === G.me) { G.me.kills++; G.onMyKill(pl, !!e[5]); } else if (as.includes(this.me)) { G.me.assists++; G.toast('어시스트 +1'); }
+      if (killer === G.me) { G.me.kills++; G.onMyKill(pl, !!e[5]); GM.gunKill(G.me, e[4] === 9 ? 'grenade' : e[4] === 8 ? 'melee' : w.key); } else if (as.includes(this.me)) { G.me.assists++; G.toast('어시스트 +1'); }
       G.killFeed(killer, pl, e[4] === 9 ? 'grenade' : e[4] === 8 ? 'melee' : w.key, !!e[5]);
     } else if (t === 'pk') { if (this.isHost) G.hostTake(N(2, 0, 1e9) | 0); else G.localRemoveItem(N(2, 0, 1e9) | 0); }
     else if (t === 'rl') { const c = Assets.clips.Reloading; pl.anim.play('Reloading', { mask: 1, rate: c.dur / pl.weapon.reload }); Snd.play('magout', pl.pos, 0.7); }
@@ -2045,10 +2069,11 @@ const Net = {
       o.s = [r2(me.pos[0]), r2(me.pos[1]), r2(me.pos[2]), r2(me.yaw % TAU), r2(me.pitch)]; o.f = (me.crouch ? 1 : 0) | (me.aiming ? 2 : 0) | (me.grounded ? 4 : 0) | (me.sprinting ? 8 : 0);
       o.w = me.weapon.id; o.hp = Math.round(me.hp); o.k = me.kills; o.a = me.assists; o.d = me.deaths;
     } else o.ph = 'L';
+    GM.presence(o, me);
     o.h = this.isHost ? G.hostBlock() : null;
     if (!this.mq && this.mqErr && this.mqErr.length) o.nx = this.mqErr.join(',') + ' v10';
     if (this.mq && this.room && this.room.report) o.nx = null;
-    if (JSON.stringify(o).length > 3600) { o.e = o.e.slice(-4); if (o.h) o.h.it = o.h.it.slice(0, 12); }
+    if (JSON.stringify(o).length > 3600) { o.e = o.e.slice(-4); if (o.h) { o.h.it = o.h.it.slice(0, 12); if (o.h.gs) o.h.gs = o.h.gs.slice(0, 45); } }
     try { const p = this.room.presence(o); if (p && p.then) p.then(() => { this.perr = null; }, (e) => { this.perr = (e && e.code) || 'err'; if (this.perr === 'invalid_argument') { try { const q = this.room.presence({ e: [], h: o.h ? { r: o.h.r, st: o.h.st, seed: o.h.seed, rem: o.h.rem, n: o.h.n, it: [] } : null }); if (q && q.catch) q.catch(() => { }); } catch (_) { } } }); } catch (e) { this.perr = 'throw'; }
   },
 };
@@ -2340,7 +2365,7 @@ const UI = {
     $('hud').hidden = !(live || s === 'end'); $('touch').hidden = !(Input.touch && s === 'play');
     for (const id of ['cross', 'vital', 'ammo', 'mini', 'hitm', 'dmgdir']) $(id).style.display = s === 'play' ? '' : 'none';
     for (const id of ['timer', 'feed']) $(id).style.display = live ? '' : 'none';
-    if (!live) { $('toast').style.opacity = 0; $('banner').style.opacity = 0; }
+    if (!live) { $('toast').style.opacity = 0; $('banner').style.opacity = 0; $('modebar').hidden = true; this.last.mb = null; }
     $('prompt').hidden = true; $('score').hidden = true; if (G.screen !== 'play') { $('scope').style.opacity = 0; }
   },
   openPause(title) { $('pauseTitle').textContent = title || '일시정지'; $('bLeave').hidden = G.screen === 'title'; $('pause').hidden = false; this.keysHelp(); },
@@ -2370,11 +2395,14 @@ const UI = {
   hit(kind) { const e = $('hitm'); e.className = kind || ''; e.style.opacity = 1; e.style.transform = 'scale(1.35)'; this.hitT = kind === 'kill' ? 0.45 : 0.22; },
   dmgFrom(ang) { const e = $('dmgdir').firstElementChild; e.style.transform = `rotate(${ang}rad)`; e.style.opacity = 1; this.dmgT = 0.9; },
   name(p) { const c = rgbToHex(...hexToRgb(p.hex1)); return `<b style="color:${c}">${esc(p.name)}</b>`; },
-  ranked() { const key = (p) => G.mode === 'online' ? String(p.net || Net.me || '') : ('000000' + p.id).slice(-6); return G.players.slice().sort((a, b) => b.kills - a.kills || b.assists - a.assists || a.deaths - b.deaths || (key(a) < key(b) ? -1 : 1)); },
+  ranked() { const key = (p) => G.mode === 'online' ? String(p.net || Net.me || '') : ('000000' + p.id).slice(-6); return G.players.slice().sort((a, b) => GM.cmp(a, b) || (key(a) < key(b) ? -1 : 1)); },
   board(el, final) {
-    const list = final ? G.results.list : this.ranked().map((p) => ({ p, name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === G.me, bot: p.kind === 'bot' }));
-    const win = Math.floor(list.length / 2);
-    el.innerHTML = `<h3>${final ? '최종 순위' : '순위표'}</h3><table><thead><tr><th>#</th><th>이름</th><th>킬</th><th>어시</th><th>데스</th></tr></thead><tbody>` + list.map((r, i) => `<tr class="${r.me ? 'me ' : ''}${i < win ? 'win' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:linear-gradient(180deg,${r.c1},${r.c2})"></span>${esc(r.name)}${r.bot ? '<em>AI</em>' : ''}${r.me ? '<em>나</em>' : ''}</td><td>${r.k}</td><td>${r.a}</td><td>${r.d}</td></tr>`).join('') + '</tbody></table>';
+    const gid = final ? G.results.gid : GM.id, sl = { gem: '보석', koth: '점수', gun: '단계' }[gid] || '', tdm = gid === 'tdm';
+    const list = final ? G.results.list : this.ranked().map((p) => ({ p, name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === G.me, bot: p.kind === 'bot', team: GM.teamOf(p), stat: GM.statText(p) }));
+    const win = Math.floor(list.length / 2), isWin = (r, i) => final ? r.win : tdm ? false : i < win;
+    let head = '';
+    if (tdm) { const a = final ? G.results.ts[0] : GM.teamScore(0), b = final ? G.results.ts[1] : GM.teamScore(1); head = `<div class="tscore"><span class="tm r">${TEAM_NAME[0]} ${a}</span><span class="vs">:</span><span class="tm b">${b} ${TEAM_NAME[1]}</span></div>`; }
+    el.innerHTML = `<h3>${final ? '최종 순위' : '순위표'} <small>${GM.def(gid).name}</small></h3>${head}<table><thead><tr><th>#</th><th>이름</th>${sl ? `<th>${sl}</th>` : ''}<th>킬</th><th>어시</th><th>데스</th></tr></thead><tbody>` + list.map((r, i) => `<tr class="${r.me ? 'me ' : ''}${isWin(r, i) ? 'win' : ''}"${r.team >= 0 ? ` style="box-shadow:inset 3px 0 0 ${TEAM_COL[r.team]}"` : ''}><td>${i + 1}</td><td><span class="dot" style="background:linear-gradient(180deg,${r.c1},${r.c2})"></span>${esc(r.name)}${r.bot ? '<em>AI</em>' : ''}${r.me ? '<em>나</em>' : ''}${r.team >= 0 ? `<em style="color:${TEAM_COL[r.team]}">${TEAM_NAME[r.team]}</em>` : ''}</td>${sl ? `<td><b>${r.stat}</b></td>` : ''}<td>${r.k}</td><td>${r.a}</td><td>${r.d}</td></tr>`).join('') + '</tbody></table>';
   },
   buildMinimap() {
     const c = this.mapImg = document.createElement('canvas'); c.width = c.height = 264; const x = c.getContext('2d'), S = 264 / (ARENA * 2), b = hsv(G.map.hue, 0.6, 0.8);
@@ -2391,18 +2419,19 @@ const UI = {
     if (this.dmgT > 0) { this.dmgT -= dt; $('dmgdir').firstElementChild.style.opacity = clamp(this.dmgT / 0.6, 0, 1); }
     const m = G.match, me = G.me;
     if (G.screen === 'lobby') this.lobbyStatus();
-    if (G.screen === 'drop') set('dropInfo', m.state === 'play' ? `남은 시간 ${this.clock(m.time)}` : '');
+    if (G.screen === 'drop') set('dropInfo', m.state === 'play' ? `${GM.def().name} · 남은 시간 ${this.clock(m.time)}` + (GM.id === 'tdm' && me && me.team >= 0 ? ` · 나는 ${TEAM_NAME[me.team]} 팀` : '') : '');
     if ($('hud').hidden) return;
     if (G.screen === 'end') { this.tags(); return; }
     set('tClock', this.clock(m.time)); const hot = m.state === 'play' && m.time <= 30; if (L.hot !== hot) { L.hot = hot; $('timer').classList.toggle('hot', hot); }
-    set('tMode', G.mode === 'online' ? `온라인 · ${Net.count()}명` : '로컬 · AI 9명');
+    set('tMode', `${GM.def().name} · ` + (G.mode === 'online' ? `온라인 ${Net.count()}명` : '로컬'));
+    if (G.frame % 6 === 0 || L.mbId !== GM.id) { const hb = me && (G.screen === 'play' || G.screen === 'dead' || G.screen === 'drop') ? GM.hud(me) : ''; L.mbId = GM.id; if (L.mb !== hb) { L.mb = hb; const e = $('modebar'); e.innerHTML = hb; e.hidden = !hb; } }
     if (!me) return;
     if (G.screen === 'play') {
       const w = me.weapon; set('wName', w.name);
       set('wAmmo', `${me.mag}<small> / ${me.reserve === Infinity ? '∞' : me.reserve}</small>`, 'innerHTML'); const low = me.mag <= Math.ceil(w.mag * 0.25); if (L.low !== low) { L.low = low; $('wAmmo').classList.toggle('low', low); }
       if (L.gn !== me.grenades) { L.gn = me.grenades; const n = $('nades').children; for (let i = 0; i < 3; i++) n[i].className = i < me.grenades ? 'on' : ''; $('tNadeN').textContent = me.grenades; $('tNade').style.opacity = me.grenades ? 1 : 0.4; }
       const hp = Math.ceil(me.hp); if (L.hp !== hp) { L.hp = hp; $('hpnum').firstChild.nodeValue = hp; $('hpbar').firstElementChild.style.width = hp + '%'; }
-      const rk = this.ranked(), rank = rk.indexOf(me) + 1; set('kad', `<b>${me.kills}</b> 킬 · <b>${me.assists}</b> 어시 · ${me.deaths} 데스 · ${rank}위/${rk.length}`, 'innerHTML');
+      const rk = this.ranked(), rank = rk.indexOf(me) + 1; set('kad', `<b>${me.kills}</b> 킬 · <b>${me.assists}</b> 어시 · ${me.deaths} 데스` + (GM.id === 'tdm' ? '' : ` · ${rank}위/${rk.length}`), 'innerHTML');
       // crosshair spread
       const spr = w.pellets > 1 ? w.err * 0.6 : me.spreadNow();
       const gap = Math.round(clamp(Math.tan(spr) / Math.tan(G.cam.fov / 2) * innerHeight / 2, 4, 70)); if (L.gap !== gap) { L.gap = gap; $('cross').style.setProperty('--gap', gap + 'px'); }
@@ -2424,24 +2453,33 @@ const UI = {
         else if (Net.status === 'denied') { t = '<b>이 기기는 온라인 방에 들어갈 수 없어요.</b> Claude 페이지의 온라인은 링크 주인이 공유 메뉴에서 <b>이 사람의 Claude 계정을 초대</b>하고, 그 계정으로 로그인해서 열어야 들어가져요. 공개 링크로만 들어오면 막혀요.'; ok = false; }
         else { t = '온라인 연결이 끊겼어요. 모드 선택으로 나갔다가 다시 들어와 주세요.'; ok = false; }
       }
-      else { const n = Net.count(); if (m.state === 'play') t = `접속자 <b>${n}명</b> · 게임 진행 중 (남은 시간 ${this.clock(m.time)})`; else if (m.state === 'end') { t = `접속자 <b>${n}명</b> · 다음 판 준비 중…`; ok = false; } else { t = `접속자 <b>${n}명</b> · 한 명 더 들어오면 시작해요` + (WEB_BUILD ? '' : Net.mq ? `<br><small>공용 서버에 연결됐어요 (${Net.room && Net.room.brokers ? Net.room.brokers() : 1}곳) · 친구도 ${window.claude ? '이 링크' : '이 파일'}만 열고 온라인을 누르면 바로 들어와요</small>` : `<br><small>연결 확인: 이 링크를 연 화면 <b>${Net.raw || 1}개</b>${Net.guests ? ` (초대 손님 ${Net.guests})` : ''}${Net.perr ? ` · 전송 오류 ${Net.perr}` : ''}</small>`); ok = false; } }
-    } else t = 'AI 9명이 랜덤 스킨으로 참가합니다';
+      else { const n = Net.count(); if (m.state === 'play') t = `접속자 <b>${n}명</b> · <b>${GM.def().name}</b> 진행 중 (남은 시간 ${this.clock(m.time)})`; else if (m.state === 'end') { t = `접속자 <b>${n}명</b> · 다음 판 준비 중…`; ok = false; } else { t = `접속자 <b>${n}명</b> · 한 명 더 들어오면 시작해요` + (WEB_BUILD ? '' : Net.mq ? `<br><small>공용 서버에 연결됐어요 (${Net.room && Net.room.brokers ? Net.room.brokers() : 1}곳) · 친구도 ${window.claude ? '이 링크' : '이 파일'}만 열고 온라인을 누르면 바로 들어와요</small>` : `<br><small>연결 확인: 이 링크를 연 화면 <b>${Net.raw || 1}개</b>${Net.guests ? ` (초대 손님 ${Net.guests})` : ''}${Net.perr ? ` · 전송 오류 ${Net.perr}` : ''}</small>`); ok = false; } }
+    } else t = GM.pick === 'tdm' ? 'AI 9명 참가 · 나 + AI 4명 vs AI 5명' : 'AI 9명이 랜덤 스킨으로 참가합니다';
+    if (G.frame % 15 === 0 || this.last.mp !== GM.pick) this.modeChips();
     if (this.last.ls !== t) { this.last.ls = t; $('netStat').innerHTML = t; } const b = $('bReady'); if (b.disabled !== !ok) b.disabled = !ok; if (this.last.rl !== label) { this.last.rl = label; b.textContent = label; }
+  },
+  modeChips() {
+    const box = $('modePick'); if (!box) return; const online = G.mode === 'online', v = online && Net.on ? GM.votes() : null;
+    if (!box.children.length) MODES.forEach((md) => { const b = document.createElement('button'); b.dataset.m = md.id; b.innerHTML = `<b>${md.name}</b><small></small>`; b.onclick = () => { Snd.play('ui'); GM.setPick(md.id); this.modeChips(); }; box.appendChild(b); });
+    for (const b of box.children) { const i = GM.idx(b.dataset.m); b.setAttribute('aria-pressed', String(b.dataset.m === GM.pick)); const s = v && v[i] ? `${v[i]}표` : MODES[i].tag; const sm = b.lastElementChild; if (sm.textContent !== s) sm.textContent = s; }
+    this.last.mp = GM.pick; const d = GM.def(GM.pick), txt = (online ? '<b>투표</b> · 다음 판은 표를 가장 많이 받은 모드로 시작해요. ' : '') + esc(d.desc); if (this.last.md !== txt) { this.last.md = txt; $('modeDesc').innerHTML = txt; }
   },
   minimap(me) {
     if (G.frame % 2 || !this.mapImg) return; const x = this.mctx, S = 264 / (ARENA * 2), P = (v) => (v + ARENA) * S;
     x.drawImage(this.mapImg, 0, 0);
     for (const it of G.match.items) { const c = it.kind === 'grenade' ? GRENADE_COL : WEAPONS[it.kind].col; x.fillStyle = rgbToHex(c[0], c[1], c[2]); x.beginPath(); if (it.kind === 'grenade') x.arc(P(it.x), P(it.z), 4, 0, TAU); else x.rect(P(it.x) - 5, P(it.z) - 5, 10, 10); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#000'; x.stroke(); }
-    for (const p of G.players) { if (p === me || p.state !== 'live' || p.sinceFire > 1.6) continue; x.fillStyle = p.hex1; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.strokeStyle = '#000'; x.stroke(); }
+    GM.minimap(x, P, me);
+    for (const p of G.players) { if (p === me || p.state !== 'live' || p.sinceFire > 1.6 || GM.ally(p, me)) continue; x.fillStyle = GM.teamOf(p) >= 0 ? TEAM_COL[p.team] : p.hex1; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.strokeStyle = '#000'; x.stroke(); }
     x.save(); x.translate(P(me.pos[0]), P(me.pos[2])); x.rotate(-me.yaw); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 2; x.beginPath(); x.moveTo(0, 11); x.lineTo(7, -8); x.lineTo(0, -4); x.lineTo(-7, -8); x.closePath(); x.stroke(); x.fill(); x.restore();
   },
   tags() {
     const box = $('tags'), seen = new Set(), me = G.me, v = [0, 0, 0], top = G.screen === 'drop' || G.screen === 'end', end = G.screen === 'end';
-    if (G.frame % 2 === 0 || !this._tagVis) { this._tagVis = new Set(); for (const p of G.tagTargets()) { if (p === me || (p.state !== 'live' && p.state !== 'drop')) continue; if (top) { this._tagVis.add(p); continue; } if (!me || !me.inWorld) continue; const d = Math.hypot(p.pos[0] - me.pos[0], p.pos[1] - me.pos[1], p.pos[2] - me.pos[2]); if (d < 55 && G.map.los(R.camPos[0], R.camPos[1], R.camPos[2], p.headPos[0], p.headPos[1], p.headPos[2])) this._tagVis.add(p); } }
+    if (G.frame % 2 === 0 || !this._tagVis) { this._tagVis = new Set(); for (const p of G.tagTargets()) { if (p === me || (p.state !== 'live' && p.state !== 'drop')) continue; if (top) { this._tagVis.add(p); continue; } if (!me || !me.inWorld) continue; if (!end && GM.ally(p, me)) { this._tagVis.add(p); continue; } const d = Math.hypot(p.pos[0] - me.pos[0], p.pos[1] - me.pos[1], p.pos[2] - me.pos[2]); if (d < 55 && G.map.los(R.camPos[0], R.camPos[1], R.camPos[2], p.headPos[0], p.headPos[1], p.headPos[2])) this._tagVis.add(p); } }
     for (const p of this._tagVis) {
       if (p.state !== 'live' && p.state !== 'drop') continue; if (!R.toScreen(v, p.headPos[0], p.headPos[1] + (end ? 0.42 : top ? 2 : 0.32), p.headPos[2])) continue;
       let el = this.tagEls.get(p); if (!el) { el = document.createElement('span'); box.appendChild(el); this.tagEls.set(p, el); } seen.add(p);
-      if (el._n !== p.name) { el._n = p.name; el.textContent = p.name; } if (el._c !== p.hex1) { el._c = p.hex1; el.style.borderColor = p.hex1; }
+      const tg = !end && GM.id === 'gem' && p.gems > 0 ? `${p.name} ◆${p.gems}` : !end && GM.id === 'gun' ? `${p.name} · ${Math.min(p.lvl | 0, GUN_LAST) + 1}단계` : p.name, bc = !end && GM.teamOf(p) >= 0 ? TEAM_COL[p.team] : p.hex1;
+      if (el._n !== tg) { el._n = tg; el.textContent = tg; } if (el._c !== bc) { el._c = bc; el.style.borderColor = bc; el.classList.toggle('ally', !end && !!me && GM.ally(p, me)); }
       el.style.left = v[0].toFixed(1) + 'px'; el.style.top = v[1].toFixed(1) + 'px'; el.style.opacity = top ? 1 : clamp(1.4 - v[2] / 45, 0.35, 1);
     }
     for (const [p, el] of this.tagEls) if (!seen.has(p)) { el.remove(); this.tagEls.delete(p); }
@@ -2450,12 +2488,244 @@ const UI = {
   fatal(msg) { const f = $('fatal'); f.hidden = false; f.textContent = msg; $('loading').hidden = true; },
 };
 
+// ==== 11b_modes.js ====
+// ---------- game modes: free-for-all, team deathmatch, gem collect, king of the hill, gun game ----------
+const MODES = [
+  { id: 'ffa', name: '개인전', tag: '데스매치', desc: '모두가 적. 킬을 가장 많이 한 사람이 이겨요.' },
+  { id: 'tdm', name: '팀 데스매치', tag: '레드 vs 블루', desc: '팀원과 함께 상대 팀을 처치. 팀 킬 합계 40을 먼저 채우거나, 끝날 때 앞선 팀이 이겨요.' },
+  { id: 'gem', name: '젬 컬렉트', tag: '보석 쟁탈', desc: '중앙에 계속 생기는 보석을 모으세요. 죽으면 가진 보석을 전부 떨어뜨려요. 끝날 때 가장 많이 가진 사람이 이겨요.' },
+  { id: 'koth', name: '점령전', tag: '킹 오브 더 힐', desc: '빛나는 구역 안에 혼자 서 있으면 1초에 1점. 다른 사람이 들어오면 경합이라 점수가 멈춰요. 구역은 45초마다 옮겨가요.' },
+  { id: 'gun', name: '무기 진화전', tag: '건 게임', desc: '처치할 때마다 다음 무기로 바뀌어요. 마지막 황금 권총으로 처치하면 즉시 우승. 근접으로 처치하면 상대를 한 단계 강등시켜요.' },
+];
+const GUN_LADDER = ['pistol', 'smg', 'shotgun', 'rifle', 'sniper', 'minigun', 'rpg', 'golden'], GUN_LAST = GUN_LADDER.length - 1;
+const TEAM_COL = ['#ff4d5e', '#3d8bff'], TEAM_NAME = ['레드', '블루'], TDM_LIMIT = 40, HILL_R = 5.5, HILL_MOVE = 45, GEM_MAX_CENTER = 14, GEM_MAX = 70;
+const TEAM_LIN = TEAM_COL.map((h) => toLin(hexToRgb(h)));
+
+const GM = {
+  pick: 'ffa', // what this player chose in the lobby (local mode / online vote)
+  get id() { return G.match.gm || 'ffa'; },
+  def(id) { return MODES.find((m) => m.id === (id || this.id)) || MODES[0]; },
+  idx(id) { return Math.max(0, MODES.findIndex((m) => m.id === id)); },
+  load() { const v = store.get('gdm.mode', 'ffa'); if (MODES.some((m) => m.id === v)) this.pick = v; },
+  setPick(id) { if (!MODES.some((m) => m.id === id)) return; this.pick = id; store.set('gdm.mode', id); if (G.mode === 'online') Net.push(true); },
+  ally(a, b) { return this.id === 'tdm' && a && b && a !== b && a.team >= 0 && a.team === b.team; },
+  teamOf(p) { return this.id === 'tdm' && p && p.team >= 0 ? p.team : -1; },
+  teamScore(t) { let s = 0; for (const p of G.players) if (p.team === t) s += p.kills; return s; },
+  resetPlayer(p) { p.gems = 0; p.pts = 0; p.lvl = 0; if (G.mode !== 'online' || p.kind !== 'remote') p.team = -1; },
+
+  // ---------- round setup (every client; mode-specific world state)
+  onRoundStart() {
+    const m = G.match; m.gems = []; m.gemT = 3; m.nextGem = 1; m.gtaken = new Set(); m.hill = null; m.hillT = 0;
+    for (const p of G.players) this.resetPlayer(p);
+    this.center = G.map ? this.openGround(0, 0) : [0, 0, 0];
+    if (this.id === 'koth' && (G.mode === 'local' || Net.isHost)) this.moveHill();
+  },
+  // nearest reachable ground-level spot to (x, z) with open floor around it
+  openGround(x, z) {
+    const map = G.map, N = map.N, out = [x, 0, z], ok = (cx, cz) => { if (cx < 2 || cz < 2 || cx >= N - 2 || cz >= N - 2) return false; for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) { const j = (cz + dz) * N + cx + dx; if (!map.reach[j] || map.h[j] > 0.01) return false; } return true; };
+    const cx0 = clamp(Math.floor(x + ARENA), 0, N - 1), cz0 = clamp(Math.floor(z + ARENA), 0, N - 1);
+    for (let r = 0; r < 30; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; if (ok(cx0 + dx, cz0 + dz)) return map.cellPos((cz0 + dz) * N + cx0 + dx, out); }
+    const i = map.nearestOk(map.cellOf(x, z)); if (i >= 0) map.cellPos(i, out); return out;
+  },
+  // local round: give bots their teams
+  setupLocal() {
+    if (this.id !== 'tdm') return; G.me.team = 0; let k = 0; for (const b of G.bots) b.p.team = k++ < 4 ? 0 : 1;
+  },
+  // host: teams for everyone online right now (balanced, random)
+  hostTeams(fresh) {
+    const m = G.match; if (this.id !== 'tdm') { m.teams = null; return; }
+    if (fresh || !m.teams) m.teams = new Map();
+    const ids = [Net.me]; for (const [id, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) ids.push(id);
+    const n = [0, 0]; for (const [id, t] of m.teams) { if (ids.includes(id)) n[t]++; else m.teams.delete(id); }
+    const todo = ids.filter((id) => !m.teams.has(id)).sort(() => Math.random() - 0.5);
+    for (const id of todo) { const t = n[0] < n[1] ? 0 : n[1] < n[0] ? 1 : Math.random() < 0.5 ? 0 : 1; m.teams.set(id, t); n[t]++; }
+    this.applyTeams();
+  },
+  applyTeams() {
+    const m = G.match; if (G.mode !== 'online') return;
+    const tm = this.id === 'tdm' && m.teams ? m.teams : null;
+    if (G.me) G.me.team = tm && tm.has(Net.me) ? tm.get(Net.me) : -1;
+    for (const [id, pe] of Net.peers) if (pe.player) pe.player.team = tm && tm.has(id) ? tm.get(id) : -1;
+  },
+  // which mode the next online round plays: most votes, ties go to the host's own pick
+  hostVote() {
+    const c = new Array(MODES.length).fill(0); c[this.idx(this.pick)] += 1.5;
+    for (const [, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) { const v = Net.num(pe.pres.gv, 0, MODES.length - 1, 0) | 0; c[v]++; }
+    let best = 0; for (let i = 1; i < c.length; i++) if (c[i] > c[best]) best = i; return MODES[best].id;
+  },
+  votes() { const c = new Array(MODES.length).fill(0); c[this.idx(this.pick)]++; for (const [, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) c[Net.num(pe.pres.gv, 0, MODES.length - 1, 0) | 0]++; return c; },
+
+  // ---------- spawning
+  spawnWeapon(p) { if (this.id !== 'gun') return; p.lvl = clamp(p.lvl | 0, 0, GUN_LAST); p.setWeapon(GUN_LADDER[p.lvl]); p.reserve = Infinity; },
+  noGuns() { return this.id === 'gun'; },
+
+  // ---------- authority (local game or online host): spawns, hill moves, early finish
+  authority(dt) {
+    const m = G.match;
+    if (this.id === 'gem') { m.gemT -= dt; if (m.gemT <= 0) { m.gemT = 4.5; let c = 0; for (const g of m.gems) if (g.c) c++; if (c < GEM_MAX_CENTER && m.gems.length < GEM_MAX) this.addGem(this.center[0] + rand(-2.2, 2.2), this.center[2] + rand(-2.2, 2.2), true); } }
+    if (this.id === 'koth') { m.hillT -= dt; if (m.hillT <= 0 || !m.hill) this.moveHill(); }
+    if (this.id === 'tdm' && (this.teamScore(0) >= TDM_LIMIT || this.teamScore(1) >= TDM_LIMIT)) return true;
+    if (this.id === 'gun' && G.players.some((p) => p.lvl > GUN_LAST)) return true;
+    return false;
+  },
+  moveHill() {
+    const m = G.match, p = [0, 0, 0], old = m.hill; let best = null, bs = -1;
+    for (let t = 0; t < 16; t++) { G.map.randomSpot(null, p, true); if (Math.abs(p[0]) > ARENA - 9 || Math.abs(p[2]) > ARENA - 9) continue; const d = old ? Math.hypot(p[0] - old[0], p[2] - old[2]) : 30; const s = Math.min(d, 40) - Math.hypot(p[0], p[2]) * 0.25; if (s > bs) { bs = s; best = [p[0], p[1], p[2]]; } }
+    m.hill = best || [this.center[0], this.center[1], this.center[2]]; m.hillT = HILL_MOVE; m.hn++;
+    if (old) this.hillMoved();
+  },
+  hillMoved() { UI.feed('<b style="color:#ffe14d">◎ 점령 구역</b><i>이 다른 곳으로 옮겨졌어요</i>'); if (G.screen === 'play') UI.toast('점령 구역 이동!', '#ffe14d'); Snd.play('grenadeget', null, 0.5); },
+  addGem(x, z, center) {
+    const m = G.match, i = G.map.nearestOk(G.map.cellOf(x, z)), p = [x, 0, z]; if (i >= 0) { G.map.cellPos(i, p); p[0] += rand(-0.35, 0.35); p[2] += rand(-0.35, 0.35); }
+    m.gems.push({ id: m.nextGem++, x: p[0], y: p[1], z: p[2], c: !!center, t: 0, model: M4.create() }); m.hn++;
+  },
+  scatterGems(n, x, y, z) {
+    n = clamp(n | 0, 0, 40); const m = G.match;
+    for (let k = 0; k < n && m.gems.length < GEM_MAX; k++) { const a = rand(TAU), r = rand(0.8, 2.6 + n * 0.08); this.addGem(x + Math.cos(a) * r, z + Math.sin(a) * r, false); }
+    FX.pickup(x, y + 1, z, [0.6, 0.85, 1]);
+  },
+  takeGem(g, p) {
+    const m = G.match, i = m.gems.indexOf(g); if (i < 0) return; m.gems.splice(i, 1); m.hn++;
+    p.gems = (p.gems | 0) + 1; FX.pickup(g.x, g.y + 0.5, g.z, [0.55, 0.85, 1]); Snd.play('grenadeget', [g.x, g.y, g.z], p === G.me ? 0.8 : 0.4);
+    if (G.mode === 'online') { if (!Net.isHost) m.gtaken.add(g.id); Net.event('pg', g.id); }
+  },
+
+  // ---------- every frame (all clients)
+  update(dt) {
+    const m = G.match, me = G.me, id = this.id;
+    if (G.mode === 'online' && G.frame % 10 === 0) this.applyTeams();
+    if (m.state !== 'play') return;
+    if (id === 'gem') {
+      for (let k = m.gems.length - 1; k >= 0; k--) {
+        const g = m.gems[k]; g.t += dt;
+        for (const p of G.players) { if (p.kind === 'remote' || p.state !== 'live') continue; if (Math.hypot(g.x - p.pos[0], g.z - p.pos[2]) < 1.25 && Math.abs(g.y - p.pos[1]) < 1.8) { this.takeGem(g, p); if (p === me) UI.toast(`보석 ${me.gems}개`, '#8fe3ff'); break; } }
+      }
+    }
+    if (id === 'koth' && m.hill) {
+      if (G.mode === 'online' && !Net.isHost) m.hillT = Math.max(0, m.hillT - dt);
+      const inside = this.inHill(); this.hillState = inside;
+      if (inside.length === 1 && inside[0].kind !== 'remote') inside[0].pts = (inside[0].pts || 0) + dt;
+    }
+  },
+  inHill() { const h = G.match.hill, out = []; if (!h) return out; for (const p of G.players) if (p.state === 'live' && Math.hypot(p.pos[0] - h[0], p.pos[2] - h[2]) < HILL_R && Math.abs(p.pos[1] - h[1]) < 3.2) out.push(p); return out; },
+
+  // ---------- deaths and kills
+  // a locally simulated player died (me, or a bot in a local game)
+  onDeath(v, att, wkey) {
+    const id = this.id;
+    if (id === 'gem' && v.gems > 0) {
+      const n = v.gems; v.gems = 0;
+      if (G.mode === 'local' || Net.isHost) this.scatterGems(n, v.pos[0], v.pos[1], v.pos[2]);
+      else { const r = (x) => Math.round(x * 10) / 10; Net.event('dg', n, r(v.pos[0]), r(v.pos[1]), r(v.pos[2])); FX.pickup(v.pos[0], v.pos[1] + 1, v.pos[2], [0.6, 0.85, 1]); }
+      if (v === G.me) UI.toast(`보석 ${n}개를 떨어뜨렸어요`, '#8fe3ff');
+    }
+    if (id === 'gun' && wkey === 'melee' && att && att !== v) { v.lvl = Math.max(0, (v.lvl | 0) - 1); if (v === G.me) UI.toast('근접 처치를 당해 한 단계 강등', '#ff8a8a'); }
+    if (id === 'gun' && att && att !== v && att.kind !== 'remote') this.gunKill(att, wkey);
+  },
+  // the killer is local (me or a bot): climb the ladder
+  gunKill(p, wkey) {
+    if (this.id !== 'gun' || G.match.state !== 'play' || wkey === 'grenade' || wkey === 'melee') return;
+    if (wkey !== p.weapon.key) return;
+    if ((p.lvl | 0) >= GUN_LAST) { p.lvl = GUN_LAST + 1; UI.banner(`${p.name} 님이 황금 권총으로 우승!`, 3); if (G.mode === 'local') G.match.time = Math.min(G.match.time, 0.01); else Net.push(true); return; }
+    p.lvl = (p.lvl | 0) + 1; p.setWeapon(GUN_LADDER[p.lvl]); p.reserve = Infinity; p.reloadT = 0; p.fireCd = Math.min(p.fireCd, 0.2); p.swapAnim();
+    if (p === G.me) { const w = WEAPONS[GUN_LADDER[p.lvl]]; UI.toast(p.lvl === GUN_LAST ? '마지막! 황금 권총' : `다음 무기 · ${w.name}`, rgbToHex(...w.col)); }
+  },
+
+  // ---------- online plumbing
+  hostBlock(h) {
+    const m = G.match, r = (v) => Math.round(v * 10) / 10; h.gm = this.idx(this.id);
+    if (this.id === 'tdm' && m.teams) h.tm = [...m.teams];
+    if (this.id === 'gem') h.gs = m.gems.slice(0, GEM_MAX).map((g) => [g.id, r(g.x), r(g.y), r(g.z), g.c ? 1 : 0]);
+    if (this.id === 'koth' && m.hill) h.kh = [r(m.hill[0]), r(m.hill[1]), r(m.hill[2]), r(m.hillT)];
+  },
+  onHostState(h) {
+    const m = G.match;
+    if (Array.isArray(h.tm)) { const t = new Map(); for (const a of h.tm.slice(0, 64)) if (Array.isArray(a) && typeof a[0] === 'string' && (a[1] === 0 || a[1] === 1)) t.set(a[0].slice(0, 40), a[1]); m.teams = t; } else m.teams = null;
+    if (this.id === 'gem' && Array.isArray(h.gs)) {
+      const out = []; for (const a of h.gs.slice(0, GEM_MAX)) { if (!Array.isArray(a)) continue; const id = Net.num(a[0], 0, 1e9, 0) | 0; if (m.gtaken.has(id)) continue; const old = m.gems.find((g) => g.id === id); out.push(old || { id, x: Net.num(a[1], -ARENA, ARENA, 0), y: Net.num(a[2], -3, 40, 0), z: Net.num(a[3], -ARENA, ARENA, 0), c: !!a[4], t: 0, model: M4.create() }); }
+      m.gems = out;
+    }
+    if (this.id === 'koth' && Array.isArray(h.kh)) { const nh = [Net.num(h.kh[0], -ARENA, ARENA, 0), Net.num(h.kh[1], -3, 40, 0), Net.num(h.kh[2], -ARENA, ARENA, 0)], moved = m.hill && Math.hypot(nh[0] - m.hill[0], nh[2] - m.hill[2]) > 1; m.hill = nh; m.hillT = Net.num(h.kh[3], 0, HILL_MOVE, 0); if (moved) this.hillMoved(); }
+    this.applyTeams();
+  },
+  handle(pe, pl, e) {
+    const t = e[1], m = G.match, N = (i, a, b) => Net.num(e[i], a, b, 0);
+    if (t === 'pg') { const id = N(2, 0, 1e9) | 0, i = m.gems.findIndex((g) => g.id === id); if (i >= 0) { m.gems.splice(i, 1); m.hn++; } if (!Net.isHost) m.gtaken.add(id); return true; }
+    if (t === 'dg') { if (Net.isHost && this.id === 'gem') this.scatterGems(N(2, 0, 40), N(3, -ARENA, ARENA), N(4, -3, 40), N(5, -ARENA, ARENA)); else FX.pickup(N(3, -ARENA, ARENA), N(4, -3, 40) + 1, N(5, -ARENA, ARENA), [0.6, 0.85, 1]); return true; }
+    return false;
+  },
+  presence(o, me) { o.gv = this.idx(this.pick); if (me) { o.t = me.team; o.gc = me.gems | 0; o.pt = Math.floor(me.pts || 0); o.lv = me.lvl | 0; } },
+  applyPresence(pl, pr) { pl.gems = Net.num(pr.gc, 0, 999, 0) | 0; pl.pts = Net.num(pr.pt, 0, 9999, 0) | 0; pl.lvl = Net.num(pr.lv, 0, GUN_LAST + 1, 0) | 0; },
+
+  // ---------- ranking + labels
+  score(p) { const id = this.id; return id === 'gem' ? p.gems | 0 : id === 'koth' ? Math.floor(p.pts || 0) : id === 'gun' ? (p.lvl | 0) : p.kills; },
+  statLabel() { return { gem: '보석', koth: '점수', gun: '단계' }[this.id] || ''; },
+  statText(p) { const id = this.id; if (id === 'gun') return p.lvl > GUN_LAST ? '우승' : `${(p.lvl | 0) + 1}/${GUN_LADDER.length}`; return String(this.score(p)); },
+  cmp(a, b) { return this.score(b) - this.score(a) || b.kills - a.kills || b.assists - a.assists || a.deaths - b.deaths; },
+  winTeam() { const a = this.teamScore(0), b = this.teamScore(1); return a > b ? 0 : b > a ? 1 : -1; },
+
+  // ---------- hud
+  hud(me) {
+    const id = this.id, m = G.match, lead = (f) => { const rk = UI.ranked(); const top = rk[0]; return top && top !== me ? ` · 1위 ${esc(top.name)} ${f(top)}` : top === me && rk.length > 1 ? ' · <b>내가 1위</b>' : ''; };
+    if (id === 'tdm') { const a = this.teamScore(0), b = this.teamScore(1), mt = me ? me.team : -1; return `<span class="tm r${mt === 0 ? ' me' : ''}">${TEAM_NAME[0]} ${a}</span><span class="vs">:</span><span class="tm b${mt === 1 ? ' me' : ''}">${b} ${TEAM_NAME[1]}</span><small>${TDM_LIMIT}킬 먼저${mt >= 0 ? ` · 나는 ${TEAM_NAME[mt]} 팀` : ''}</small>`; }
+    if (id === 'gem') return `<span class="gem">◆ ${me ? me.gems | 0 : 0}</span><small>내 보석${lead((p) => '◆' + (p.gems | 0))}</small>`;
+    if (id === 'koth') {
+      const s = this.hillState || [], st = !m.hill ? '' : s.length === 0 ? '비어 있음' : s.length > 1 ? '<b class="warn">경합 중</b>' : s[0] === me ? '<b class="ok">점령 중 +1/초</b>' : `${esc(s[0].name)} 점령 중`;
+      return `<span class="pt">${me ? Math.floor(me.pts || 0) : 0}점</span><small>${st} · 이동 ${UI.clock(m.hillT || 0)}${lead((p) => Math.floor(p.pts || 0) + '점')}</small>`;
+    }
+    if (id === 'gun') { const l = me ? clamp(me.lvl | 0, 0, GUN_LAST) : 0, nx = l < GUN_LAST ? WEAPONS[GUN_LADDER[l + 1]].name : '우승'; return `<span class="pt">${l + 1}/${GUN_LADDER.length}</span><small>${WEAPONS[GUN_LADDER[l]].name} → ${nx}${lead((p) => ((p.lvl | 0) + 1) + '단계')}</small>`; }
+    return '';
+  },
+
+  // ---------- visuals
+  render(sc, top) {
+    const m = G.match, id = this.id, k = top ? 3 : 1;
+    if (id === 'gem') {
+      const c = this.center; if (c) { FX.frameQuads.push({ flat: true, x: c[0], y: c[1] + 0.08, z: c[2], s: (3.2 + Math.sin(G.now * 2) * 0.2) * (top ? 1.6 : 1), c: [1.2, 2.6, 4], a: 0.55, kind: 3 }, { beam: true, ax: c[0], ay: c[1], az: c[2], bx: c[0], by: c[1] + 14 * (top ? 2 : 1), bz: c[2], w: 0.35 * k, c: [1, 2.4, 4], a: 0.3 }); }
+      for (const g of m.gems) {
+        const bob = Math.sin(g.t * 2.6 + g.id) * 0.1, pop = Math.min(1, g.t * 3); M4.yawPos(g.model, g.t * 2 + g.id, g.x, g.y + 0.55 + bob, g.z, 1.5 * pop * (top ? 2.2 : 1));
+        sc.props.push({ mesh: GunMeshes.gem, model: g.model, tint: [1.5, 1.5, 1.6], emis: 0.9 });
+        FX.frameQuads.push({ x: g.x, y: g.y + 0.55 + bob, z: g.z, s: 0.8 * k, c: [0.7, 1.6, 3], a: 0.55, kind: 0 });
+      }
+      // carriers: a floating gem crown sized by how many they hold
+      for (const p of G.players) if (p.state === 'live' && p.gems > 0 && !(p === G.me && G.fpv)) FX.frameQuads.push({ x: p.headPos[0], y: p.headPos[1] + 0.55, z: p.headPos[2], s: (0.5 + Math.min(p.gems, 20) * 0.04) * k, c: [0.8, 1.8, 3.5], a: 0.9, kind: 0 });
+    }
+    if (id === 'koth' && m.hill) {
+      const h = m.hill, s = this.hillState || [], own = s.length === 1 ? s[0] : null, col = s.length > 1 ? [4, 1.4, 0.6] : own ? [own.c1[0] * 3 + 0.6, own.c1[1] * 3 + 0.6, own.c1[2] * 3 + 0.6] : [3, 2.7, 1];
+      FX.frameQuads.push({ flat: true, x: h[0], y: h[1] + 0.1, z: h[2], s: HILL_R, c: col, a: 0.95, kind: 3 }, { flat: true, x: h[0], y: h[1] + 0.09, z: h[2], s: HILL_R * (0.35 + (G.now * 0.5 % 1) * 0.65), c: col, a: 0.6 * (1 - G.now * 0.5 % 1), kind: 3 });
+      FX.frameQuads.push({ beam: true, ax: h[0], ay: h[1], az: h[2], bx: h[0], by: h[1] + 26 * (top ? 2 : 1), bz: h[2], w: 0.6 * k, c: col, a: 0.35 });
+      FX.light(h[0], h[1] + 1.5, h[2], 9, [col[0] * 0.5, col[1] * 0.5, col[2] * 0.5], 0.03);
+    }
+    if (id === 'tdm') for (const p of G.players) if ((p.state === 'live' || p.state === 'drop') && p.team >= 0 && !(p === G.me && G.fpv)) { const c = TEAM_LIN[p.team]; FX.frameQuads.push({ flat: true, x: p.pos[0], y: p.visY + 0.06, z: p.pos[2], s: 0.75 * k, c: [c[0] * 2.2, c[1] * 2.2, c[2] * 2.2], a: 0.9, kind: 3 }); }
+  },
+  minimap(x, P, me) {
+    const m = G.match, id = this.id, S = 264 / (ARENA * 2);
+    if (id === 'koth' && m.hill) { x.beginPath(); x.arc(P(m.hill[0]), P(m.hill[2]), HILL_R * S, 0, TAU); x.fillStyle = 'rgba(255,225,77,0.28)'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#ffe14d'; x.stroke(); }
+    if (id === 'gem') { for (const g of m.gems) { x.fillStyle = '#8fe3ff'; x.fillRect(P(g.x) - 2.5, P(g.z) - 2.5, 5, 5); } }
+    if (id === 'tdm' && me) for (const p of G.players) if (p !== me && p.state === 'live' && this.ally(p, me)) { x.fillStyle = TEAM_COL[p.team]; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#fff'; x.stroke(); }
+  },
+  // objective a fighting bot keeps drifting toward ([x, z] or null)
+  botPull(p) {
+    const m = G.match, id = this.id;
+    if (id === 'gem') { let best = null, bd = 12; for (const g of m.gems) { const d = Math.hypot(g.x - p.pos[0], g.z - p.pos[2]); if (d < bd && Math.abs(g.y - p.pos[1]) < 1.6) { bd = d; best = g; } } return best ? [best.x, best.z] : null; }
+    if (id === 'koth' && m.hill) { const d = Math.hypot(m.hill[0] - p.pos[0], m.hill[2] - p.pos[2]); if (d > HILL_R * 0.6 && d < 30 && Math.abs(m.hill[1] - p.pos[1]) < 2) return [m.hill[0], m.hill[2]]; }
+    return null;
+  },
+  // where an idle bot should head (null: the usual wandering)
+  botGoal(p) {
+    const m = G.match, id = this.id;
+    if (id === 'gem') { let best = null, bd = 1e9; for (const g of m.gems) { const d = Math.hypot(g.x - p.pos[0], g.z - p.pos[2]); if (d < bd) { bd = d; best = g; } } if (best && Math.random() < 0.9) return [best.x, best.y, best.z]; return this.center && Math.random() < 0.6 ? this.center.slice() : null; }
+    if (id === 'koth' && m.hill && Math.random() < 0.8) { const a = rand(TAU), r = rand(HILL_R * 0.6); return [m.hill[0] + Math.cos(a) * r, m.hill[1], m.hill[2] + Math.sin(a) * r]; }
+    return null;
+  },
+};
+
 // ==== 12_game.js ====
 // ---------- game flow, match rules, camera, main loop ----------
 const ROUND_TIME = 300;
 const G = {
   screen: 'boot', mode: null, now: 0, frame: 0, players: [], bots: [], me: null, map: null, mapMesh: null, charMesh: null, stage: null, display: [],
-  match: { state: 'idle', time: ROUND_TIME, items: [], grenades: [], rockets: [], rid: 0, seed: 0, endT: 0, wT: 9, gT: 6, nextItem: 1, hn: 0, lastSec: -1, taken: new Set() },
+  match: { gm: 'ffa', gems: [], gtaken: new Set(), hill: null, hillT: 0, teams: null, state: 'idle', time: ROUND_TIME, items: [], grenades: [], rockets: [], rid: 0, seed: 0, endT: 0, wT: 9, gT: 6, nextItem: 1, hn: 0, lastSec: -1, taken: new Set() },
   profile: { name: '플레이어', c1: '#ff5aa8', c2: '#3d6bff' }, settings: { sens: 1, zsens: 1, tsens: 100, swapFire: true, v2: true, v3: true, view: DEFAULT_VIEW, xcol: 1, vol: 80, mus: 55, sfx: 90, quality: 2 },
   cam: { eye: [0, 2, 6], target: [0, 1, 0], up: [0, 1, 0], fov: 0.9, near: 0.12, far: 700 }, eyeBase: [0, 0, 0], eyeOK: false, fpv: false, shotMinT: 0, vmOK: false, vmMuzzle: [0, 0, 0], zoomNow: 1, hipFov: 1.2, scoped: false, vmKick: 0, swayX: 0, swayY: 0, bobT: 0, prevYaw: 0, prevPitch: 0, camKick: 0, camDist: 3, camH: 1.62, nearItem: null, results: null, dropHover: null, deadT: 0, killer: null, pulseR: 0, barrierT: 0, slowT: 0, autoQ: true, ft: 16, ftN: 0,
   view: M4.create(), sc: { cam: null, chars: [], props: [], lights: [], parts: null, mapMesh: null, shadowFocus: [0, 0, 0], shadowRadius: 40 },
@@ -2467,7 +2737,7 @@ const G = {
       const touchDev = matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches; this.settings.quality = touchDev ? 1 : 2;
       const st = store.get('gdm.settings', null); if (st && typeof st === 'object') { for (const k of ['sens', 'zsens', 'tsens', 'xcol', 'vol', 'mus', 'sfx', 'quality']) if (typeof st[k] === 'number' && isFinite(st[k])) this.settings[k] = st[k]; this.settings.swapFire = st.v2 ? st.swapFire !== false : true; this.settings.view = st.view === 'tps' || st.view === 'fps' ? st.view : DEFAULT_VIEW; if (!(this.settings.sens > 0 && this.settings.sens <= 10)) this.settings.sens = 1; if (!st.v3 && Math.abs(this.settings.sens - 0.4) < 1e-6) this.settings.sens = 1; this.settings.xcol = clamp(this.settings.xcol | 0, 0, 6); this.autoQ = false; }
       this.settings.quality = clamp(this.settings.quality | 0, 0, 2);
-      this.setQ(); R.init($('gl')); loadAssets();
+      GM.load(); this.setQ(); R.init($('gl')); loadAssets();
       const m = Assets.mesh; this.charMesh = R.charMesh(m.pos, m.nrm, m.ski, m.skw, m.idx); buildGunMeshes(); computeGunOffset(); R.armMask = new Float32Array(NBONES); Assets.bones.forEach((b, i) => { if (/(Arm|Hand)/.test(b.name)) R.armMask[i] = 1; });
       this.sc.cam = this.cam; this.applyAudio(); UI.init(); Input.init();
       this.newStage(); this.toTitle(); $('loading').hidden = true;
@@ -2540,11 +2810,12 @@ const G = {
   },
   resetRound() { const m = this.match; m.items = []; m.grenades = []; m.rockets = []; m.time = ROUND_TIME; m.wT = 9; m.gT = rand(6, 10); m.taken.clear(); m.lastSec = -1; this.nearItem = null; $('feed').innerHTML = ''; UI.feedItems = []; },
   startLocal() {
-    const m = this.match, seed = (Math.random() * 4294967295) >>> 0; this.loadMap(seed); this.resetRound(); m.seed = seed; m.state = 'play'; m.rid++;
+    const m = this.match, seed = (Math.random() * 4294967295) >>> 0; m.gm = GM.pick; this.loadMap(seed); this.resetRound(); m.seed = seed; m.state = 'play'; m.rid++;
     this.me.kills = this.me.assists = this.me.deaths = 0; this.me.state = 'out'; this.players = [this.me]; this.bots = [];
     const names = BOT_NAMES.slice().sort(() => Math.random() - 0.5);
     for (let i = 0; i < 9; i++) { const s = randomSkin(), p = new Player('bot', names[i], s[0], s[1]); p.rd.mesh = this.charMesh; this.players.push(p); const b = new Bot(p); p.bot = b; this.bots.push(b); }
-    for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade');
+    GM.onRoundStart(); GM.setupLocal();
+    if (!GM.noGuns()) for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade');
   },
   enterDrop() { this.screen = 'drop'; UI.show('scrDrop'); Input.unlock(); this.dropHover = null; Snd.intensity = 0.5; this.nearItem = null; },
   dropPoint(px, py, out) {
@@ -2559,6 +2830,7 @@ const G = {
   dropAt(p) {
     const me = this.me; me.yaw = Math.atan2(-p[0], -p[2]); me.pitch = -0.55; me.spawnDrop(p[0], p[2]); me.hide = false;
     this.screen = 'play'; UI.show(null); Input.resetPlay(); Input.lock(); this.camDist = 7; this.camKick = 0; Snd.intensity = 0.8; UI.last = {}; Net.push(true);
+    if (this._bannerRid !== this.match.rid) { this._bannerRid = this.match.rid; const d = GM.def(); UI.banner(d.name, 2.2); UI.feed(`<b>${d.name}</b><i>${esc(d.desc)}</i>`); if (GM.id === 'tdm' && me.team >= 0) UI.toast(`나는 ${TEAM_NAME[me.team]} 팀`, TEAM_COL[me.team]); }
   },
   // ---------- rules
   randWeapon() { const have = this.match.items.map((i) => i.kind), powerOut = have.some((k) => POWER.includes(k)) || this.players.some((p) => p.state === 'live' && p.weapon.power);
@@ -2573,28 +2845,29 @@ const G = {
   announce(kind) { const w = WEAPONS[kind]; UI.feed(`<b style="color:${rgbToHex(...w.col)}">★ ${w.name}</b><i>이(가) 맵에 나타났어요</i>`); if (this.screen === 'play') UI.toast(`${w.name} 등장!`, rgbToHex(...w.col)); Snd.play('grenadeget', null, 0.6); },
   authority(dt) {
     const m = this.match;
-    if (this.mode === 'local') { if (m.state === 'play') { m.time -= dt; if (m.time <= 0) { m.time = 0; this.endRound(); return; } } }
+    if (this.mode === 'local') { if (m.state === 'play') { m.time -= dt; if (GM.authority(dt)) m.time = 0; if (m.time <= 0) { m.time = 0; this.endRound(); return; } } }
     else {
       const n = Net.count();
       if (m.state === 'idle') m.state = 'wait';
       if (m.state === 'wait') { if (n >= 2) this.hostStartRound(); }
-      else if (m.state === 'play') { m.time -= dt; const s = Math.floor(m.time); if (s !== m.lastSec) { m.lastSec = s; m.hn++; } if (m.time <= 0 || n <= 1) { m.time = Math.max(0, m.time); m.state = 'end'; m.endT = 16; m.hn++; this.endRound(); Net.push(true); return; } }
+      else if (m.state === 'play') { m.time -= dt; const s = Math.floor(m.time); if (s !== m.lastSec) { m.lastSec = s; m.hn++; if (GM.id === 'tdm') GM.hostTeams(false); } if (GM.authority(dt)) m.time = 0; if (m.time <= 0 || n <= 1) { m.time = Math.max(0, m.time); m.state = 'end'; m.endT = 16; m.hn++; this.endRound(); Net.push(true); return; } }
       else if (m.state === 'end') { m.endT -= dt; if (m.endT <= 0) { if (n >= 2) this.hostStartRound(); else { m.state = 'wait'; m.hn++; } } }
     }
     if (m.state !== 'play') return;
     const guns = m.items.filter((i) => i.kind !== 'grenade').length;
-    if (guns < 2) { m.wT -= dt; if (m.wT <= 0) { this.spawnItem(this.randWeapon()); m.wT = 9; } } else m.wT = 9;
+    if (guns < 2 && !GM.noGuns()) { m.wT -= dt; if (m.wT <= 0) { this.spawnItem(this.randWeapon()); m.wT = 9; } } else m.wT = 9;
     m.gT -= dt; if (m.gT <= 0) { if (m.items.length - guns < 4) this.spawnItem('grenade'); m.gT = rand(9, 15); }
   },
   hostStartRound() {
-    const m = this.match; m.rid++; m.seed = (Math.random() * 4294967295) >>> 0; this.onRoundStart(m.seed); m.state = 'play'; m.hn++;
-    for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade'); Net.push(true);
+    const m = this.match; m.rid++; m.seed = (Math.random() * 4294967295) >>> 0; m.gm = GM.hostVote(); this.onRoundStart(m.seed); GM.hostTeams(true); m.state = 'play'; m.hn++;
+    if (!GM.noGuns()) for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade'); Net.push(true);
   },
-  onRoundStart(seed) { this.loadMap(seed); this.resetRound(); const me = this.me; if (me) { me.kills = me.assists = me.deaths = 0; if (me.inWorld) { me.state = 'out'; if (this.screen === 'play' || this.screen === 'dead' || this.screen === 'drop') this.toLobby(); } } },
+  onRoundStart(seed) { this.loadMap(seed); this.resetRound(); const me = this.me; if (me) { me.kills = me.assists = me.deaths = 0; if (me.inWorld) { me.state = 'out'; if (this.screen === 'play' || this.screen === 'dead' || this.screen === 'drop') this.toLobby(); } } for (const p of this.players) if (p.kind === 'remote') p.kills = p.assists = p.deaths = 0; GM.onRoundStart(); if (this.mode === 'online') UI.feed(`이번 판 · <b>${GM.def().name}</b>`); },
   becomeHost(H) { const m = this.match; if (m.state === 'idle') m.state = 'wait'; m.hn += 5; },
-  hostBlock() { const m = this.match, r = (v) => Math.round(v * 10) / 10; return { r: m.rid, st: m.state === 'play' ? 'p' : m.state === 'end' ? 'e' : 'w', seed: m.seed, rem: r(m.time), n: m.hn, it: m.items.map((i) => [i.id, i.kind === 'grenade' ? 9 : WEAPONS[i.kind].id, r(i.x), r(i.y), r(i.z)]) }; },
+  hostBlock() { const m = this.match, r = (v) => Math.round(v * 10) / 10; const h = { r: m.rid, st: m.state === 'play' ? 'p' : m.state === 'end' ? 'e' : 'w', seed: m.seed, rem: r(m.time), n: m.hn, it: m.items.map((i) => [i.id, i.kind === 'grenade' ? 9 : WEAPONS[i.kind].id, r(i.x), r(i.y), r(i.z)]) }; GM.hostBlock(h); return h; },
   onHostState(h) {
     const m = this.match, st = h.st === 'p' ? 'play' : h.st === 'e' ? 'end' : 'wait', rid = Net.num(h.r, 0, 1e9, 0) | 0, seed = Net.num(h.seed, 0, 4294967295, 1) >>> 0;
+    const gm = MODES[Net.num(h.gm, 0, MODES.length - 1, 0) | 0].id; if (st === 'play' && (m.rid !== rid || m.state !== 'play')) m.gm = gm; else if (st !== 'play' && m.state !== 'play') m.gm = gm;
     if (st === 'play' && (m.rid !== rid || m.state !== 'play' || !this.map || this.map.seed !== seed)) { m.rid = rid; m.seed = seed; this.onRoundStart(seed); }
     const was = m.state; m.state = st; m.time = Net.num(h.rem, 0, ROUND_TIME, 0);
     if (was === 'play' && st !== 'play') this.endRound();
@@ -2603,7 +2876,7 @@ const G = {
       if (!Array.isArray(a)) continue; const id = Net.num(a[0], 0, 1e9, 0) | 0; if (m.taken.has(id)) continue; const kind = a[1] === 9 ? 'grenade' : (WEAPON_LIST[Net.num(a[1], 1, MAX_WID, 2) | 0] || WEAPONS.rifle).key;
       const old = m.items.find((i) => i.id === id); if (!old && POWER.includes(kind)) this.announce(kind); out.push(old || { id, kind, x: Net.num(a[2], -ARENA, ARENA, 0), y: Net.num(a[3], -3, 40, 0), z: Net.num(a[4], -ARENA, ARENA, 0), t: 0, model: M4.create(), pad: M4.create() });
     }
-    m.items = out;
+    m.items = out; GM.onHostState(h);
   },
   hostTake(id) { const m = this.match, i = m.items.findIndex((x) => x.id === id); if (i >= 0) { m.items.splice(i, 1); m.hn++; } },
   localRemoveItem(id) { const m = this.match, i = m.items.findIndex((x) => x.id === id); if (i >= 0) m.items.splice(i, 1); m.taken.add(id); },
@@ -2636,7 +2909,7 @@ const G = {
   shoot(sh, o, d, w, minT) {
     let best = 400, target = null, head = false, wall = false; const dx = d[0] || 1e-9, dy = d[1] || 1e-9, dz = d[2] || 1e-9;
     if (this.map.raycast(o[0], o[1], o[2], dx, dy, dz, best, _RC)) { best = _RC.t; wall = true; }
-    for (const p of this.players) { if (p === sh || p.state !== 'live') continue; const t = p.hitTest(o[0], o[1], o[2], dx, dy, dz, best, _HT); if (t > minT && t < best) { best = t; target = p; head = _HT.head; } }
+    for (const p of this.players) { if (p === sh || p.state !== 'live' || GM.ally(p, sh)) continue; const t = p.hitTest(o[0], o[1], o[2], dx, dy, dz, best, _HT); if (t > minT && t < best) { best = t; target = p; head = _HT.head; } }
     const end = [o[0] + dx * best, o[1] + dy * best, o[2] + dz * best];
     if (target) {
       const dist = Math.hypot(end[0] - sh.pos[0], end[1] - sh.pos[1], end[2] - sh.pos[2]), fo = w.falloff, k = dist <= fo[0] ? 1 : dist >= fo[1] ? fo[2] : lerp(1, fo[2], (dist - fo[0]) / (fo[1] - fo[0]));
@@ -2646,6 +2919,7 @@ const G = {
     return end;
   },
   dealDamage(v, dmg, att, head, wkey, dir) {
+    if (GM.ally(v, att)) return;
     if (v.kind === 'remote') { if (att === this.me && this.match.state === 'play') { const id = wkey === 'melee' ? 8 : wkey === 'grenade' ? 9 : WEAPONS[wkey] ? WEAPONS[wkey].id : 0; Net.event('ht', v.net, Math.round(dmg), head ? 1 : 0, id); v.flash = 1; UI.hit(head ? 'head' : ''); Snd.play(head ? 'head' : 'hit', null, 0.8); } return; }
     const ok = v.damage(dmg, att, head, wkey, dir);
     if (ok && att === this.me && v !== this.me) { UI.hit(v.state === 'dead' ? 'kill' : head ? 'head' : ''); Snd.play(head ? 'head' : 'hit', null, 0.8); }
@@ -2653,6 +2927,7 @@ const G = {
   onDeath(v, att, head, wkey) {
     const as = []; for (const k in v.damagers) { const e = v.damagers[k]; if (e.p !== att && e.p !== v && this.now - e.t < 10 && e.d >= 15) as.push(e.p); }
     if (att === v) att = null;
+    GM.onDeath(v, att, wkey);
     if (this.mode === 'local') { if (att) att.kills++; for (const p of as) p.assists++; if (att === this.me) this.onMyKill(v, head); else if (as.includes(this.me)) UI.toast('어시스트 +1'); }
     else if (v === this.me) Net.event('dn', att && att.net ? att.net : '', as.map((p) => p.net).filter(Boolean), wkey === 'grenade' ? 9 : wkey === 'melee' ? 8 : (WEAPONS[wkey] || WEAPONS.pistol).id, head ? 1 : 0);
     this.killFeed(att, v, wkey, head);
@@ -2703,7 +2978,7 @@ const G = {
     for (let i = rs.length - 1; i >= 0; i--) {
       const k = rs[i], step = SPD * dt; k.life -= dt; let hitT = step, hit = false;
       if (this.map.raycast(k.x, k.y, k.z, k.dx || 1e-9, k.dy || 1e-9, k.dz || 1e-9, step, _RC)) { hitT = _RC.t; hit = true; }
-      for (const p of this.players) { if (p === k.owner || p.state !== 'live') continue; const t = p.hitTest(k.x, k.y, k.z, k.dx, k.dy, k.dz, hitT, _HT); if (t > 0 && t < hitT) { hitT = t; hit = true; } }
+      for (const p of this.players) { if (p === k.owner || p.state !== 'live' || GM.ally(p, k.owner)) continue; const t = p.hitTest(k.x, k.y, k.z, k.dx, k.dy, k.dz, hitT, _HT); if (t > 0 && t < hitT) { hitT = t; hit = true; } }
       k.x += k.dx * hitT; k.y += k.dy * hitT; k.z += k.dz * hitT;
       if (Math.abs(k.x) > ARENA + 5 || Math.abs(k.z) > ARENA + 5) { rs.splice(i, 1); continue; }
       k.trail -= dt; if (k.trail <= 0) { k.trail = 0.016; FX.spawn({ x: k.x, y: k.y, z: k.z, vx: rand(-0.3, 0.3), vy: rand(0, 0.5), vz: rand(-0.3, 0.3), life: rand(0.7, 1.3), s0: 0.12, s1: rand(0.5, 0.9), c: [0.55, 0.55, 0.58], a: 0.45, kind: 1, add: false, drag: 1.5 }); FX.spawn({ x: k.x, y: k.y, z: k.z, life: 0.12, s0: 0.25, s1: 0.1, c: [6, 3, 0.8] }); }
@@ -2727,19 +3002,32 @@ const G = {
   // ---------- round end
   endRound() {
     if (this.screen === 'end' || this.screen === 'title' || this.screen === 'lobby') return;
-    const list = UI.ranked().map((p) => ({ name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === this.me, bot: p.kind === 'bot' }));
-    const win = Math.floor(list.length / 2), rank = list.findIndex((r) => r.me) + 1, won = rank > 0 && rank <= win; this.results = { list, win, rank, won };
+    const gid = GM.id, wt = gid === 'tdm' ? GM.winTeam() : -1, ts = [GM.teamScore(0), GM.teamScore(1)];
+    const list = UI.ranked().map((p) => ({ name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === this.me, bot: p.kind === 'bot', team: GM.teamOf(p), stat: GM.statText(p), gwin: gid === 'gun' && p.lvl > GUN_LAST }));
+    const rank = list.findIndex((r) => r.me) + 1, meRow = list[rank - 1];
+    let win = Math.floor(list.length / 2), won = rank > 0 && rank <= win;
+    if (gid === 'tdm') { for (const r of list) r.win = r.team === wt; won = !!(meRow && meRow.team === wt && wt >= 0); win = -1; }
+    else list.forEach((r, i) => { r.win = i < win; });
+    this.results = { list, win, rank, won, gid, wt, ts, draw: gid === 'tdm' && wt < 0 };
     if (this.mode === 'local') this.match.state = 'idle';
     for (const p of this.players) if (p.kind !== 'remote') p.state = 'out'; this.bots = []; if (this.mode === 'local') this.players = [this.me];
     this.match.grenades = []; this.match.rockets = []; FX.reset(); UI.clearTags(); Input.unlock(); Snd.wind(0); this.newStage(true);
     this.screen = 'end'; this.display = [];
     const show = list.slice(0, 10); if (rank > 10) show[9] = list[rank - 1];
-    const W = show.filter((r, i) => list.indexOf(r) < win), Lo = show.filter((r) => !W.includes(r));
+    const W = show.filter((r) => r.win), Lo = show.filter((r) => !W.includes(r));
     const row = (arr, z, y, vic) => arr.forEach((r, i) => { const x = (i - (arr.length - 1) / 2) * Math.min(1.5, 8 / Math.max(arr.length, 1)) + (vic ? 0 : 0.35); const d = this.mkDisplay(r.name, r.c1, r.c2, x, y, z, 0, vic ? 'Victory' : 'Defeat', false); d.anim.idleT = rand(0.6); this.display.push(d); });
     row(W, 1.5, 0.6, true); row(Lo, -1.7, 1.3, false);
-    $('endEyebrow').textContent = this.mode === 'online' ? '온라인 · 라운드 종료' : '로컬 · 라운드 종료';
+    $('endEyebrow').textContent = `${GM.def(gid).name} · ${this.mode === 'online' ? '온라인' : '로컬'} · 라운드 종료`;
     const t = $('endTitle'); if (list.length < 2) { t.textContent = '판 종료'; t.className = ''; $('endSub').textContent = '다른 접속자가 없어 판이 끝났어요.'; }
-    else { t.textContent = won ? '승리' : '패배'; t.className = won ? 'win' : ''; const me = list[rank - 1] || { k: 0, a: 0 }; $('endSub').textContent = `${list.length}명 중 ${rank}위 · ${me.k}킬 ${me.a}어시스트 · 상위 ${win}명 승리`; }
+    else {
+      const r = this.results, me = meRow || { k: 0, a: 0, stat: '0', team: -1 }; t.textContent = r.draw ? '무승부' : won ? '승리' : '패배'; t.className = won ? 'win' : '';
+      let sub = `${list.length}명 중 ${rank}위 · ${me.k}킬 ${me.a}어시스트 · 상위 ${win}명 승리`;
+      if (gid === 'tdm') sub = `${TEAM_NAME[0]} ${ts[0]} : ${ts[1]} ${TEAM_NAME[1]} · ` + (r.draw ? '동점' : `${TEAM_NAME[wt]} 팀 승리`) + (me.team >= 0 ? ` · 나는 ${TEAM_NAME[me.team]} 팀, ${me.k}킬` : '');
+      else if (gid === 'gem') sub = `${list.length}명 중 ${rank}위 · 보석 ${me.stat}개 · 1위 ${list[0].name} 보석 ${list[0].stat}개`;
+      else if (gid === 'koth') sub = `${list.length}명 중 ${rank}위 · 점령 ${me.stat}점 · 1위 ${list[0].name} ${list[0].stat}점`;
+      else if (gid === 'gun') sub = (list[0].gwin ? `${list[0].name} 님이 황금 권총으로 우승 · ` : '') + `나는 ${rank}위 · ` + (me.stat === '우승' ? '우승' : `${me.stat}단계`);
+      $('endSub').textContent = sub;
+    }
     UI.board($('endBoard'), true); UI.show('scrEnd'); Snd.intensity = 0.35; Snd.play(won ? 'win' : 'lose', null, 0.9); $('pause').hidden = true; Net.push(true);
   },
   exitEnd() { this.newStage(); if (this.me) { this.me.state = 'out'; this.me.kills = this.me.assists = this.me.deaths = 0; } if (this.mode === 'local') { this.match.state = 'idle'; this.match.time = ROUND_TIME; } this.toLobby(); },
@@ -2780,7 +3068,7 @@ const G = {
     if (sim && (this.screen === 'drop' || this.screen === 'play' || this.screen === 'dead')) {
       if (me.inWorld) { if (this.screen === 'play') Input.apply(me, dt); else { const i = me.inp; i.f = i.s = 0; i.fire = i.aim = i.jump = i.sprint = i.reload = i.grenade = i.swap = i.melee = false; } me.update(dt); }
       for (const b of this.bots) { b.update(dt); b.p.update(dt); }
-      this.updateGrenades(dt); this.updateRockets(dt); this.updateItems(dt);
+      this.updateGrenades(dt); this.updateRockets(dt); this.updateItems(dt); GM.update(dt);
       if (this.screen === 'dead') { this.deadT += dt; if (this.deadT > 2.8 && m.state === 'play') { me.state = me.state === 'dead' ? 'dead' : me.state; this.enterDrop(); } }
       if (m.state === 'play') { const s = Math.ceil(m.time); if (s !== this._sec) { this._sec = s; if (s === 30) UI.banner('30초 남았어요', 1.6); if (s <= 10 && s > 0) Snd.play('tick', null, 0.7); } Snd.intensity = this.screen === 'drop' ? 0.5 : m.time < 30 ? 1 : 0.8; }
     }
@@ -2856,11 +3144,12 @@ const G = {
         FX.frameQuads.push({ flat: true, x: i.x, y: i.y + 0.11, z: i.z, s: (1.0 + (i.t * 0.7 % 1) * 0.9) * (top ? 3 : 1), c: [col[0] * 3, col[1] * 3, col[2] * 3], a: 1 - (i.t * 0.7 % 1), kind: 3 });
         FX.frameQuads.push({ x: i.x, y: i.y + 1.05 + bob, z: i.z, s: 0.9 * (top ? 3 : 1), c: [col[0] * 1.2, col[1] * 1.2, col[2] * 1.2], a: 0.5, kind: 0 });
       }
+      GM.render(sc, top);
       for (const g of this.match.grenades) { M4.yawPos(g.model, g.spin, g.x, g.y + 0.09, g.z, 1.25); sc.props.push({ mesh: GunMeshes.grenade, model: g.model, tint: [1, 1, 1], emis: 0.15 }); }
       if (top) {
         const h = this.dropHover, me = this.me;
         if (h) { const pc = me.c1; FX.frameQuads.push({ flat: true, x: h[0], y: h[1] + 0.15, z: h[2], s: 3.2 + Math.sin(this.now * 6) * 0.4, c: [pc[0] * 4 + 2, pc[1] * 4 + 2, pc[2] * 4 + 2], a: 1, kind: 3 }, { beam: true, ax: h[0], ay: h[1], az: h[2], bx: h[0], by: h[1] + 40, bz: h[2], w: 0.5, c: [pc[0] * 3 + 1, pc[1] * 3 + 1, pc[2] * 3 + 1], a: 0.8 }); }
-        for (const p of this.players) if (p.state === 'live' || p.state === 'drop') FX.frameQuads.push({ x: p.pos[0], y: p.pos[1] + 1.5, z: p.pos[2], s: 2.6, c: [p.c1[0] * 3 + 0.3, p.c1[1] * 3 + 0.3, p.c1[2] * 3 + 0.3], a: 1, kind: 0 });
+        for (const p of this.players) if (p.state === 'live' || p.state === 'drop') { const c = GM.teamOf(p) >= 0 ? TEAM_LIN[p.team] : p.c1; FX.frameQuads.push({ x: p.pos[0], y: p.pos[1] + 1.5, z: p.pos[2], s: 2.6, c: [c[0] * 3 + 0.3, c[1] * 3 + 0.3, c[2] * 3 + 0.3], a: 1, kind: 0 }); }
       }
     }
     sc.lights = FX.topLights(); sc.parts = FX.build(this.view, cam.eye);

@@ -2651,12 +2651,16 @@ const Input = {
       e.preventDefault();
     });
     addEventListener('mouseup', (e) => { const fb = G.settings.swapFire ? 0 : 2; if (e.button === fb) this.fire = false; else if (e.button === 0 || e.button === 2) this.aim = false; });
-    addEventListener('mousemove', (e) => {
-      if (this.touch) return;
-      if (G.screen === 'drop') { G.dropHoverAt(e.clientX, e.clientY); return; }
-      if (G.screen === 'play' && (this.locked || this.lockOK === false)) { this.lookDX += e.movementX || 0; this.lookDY += e.movementY || 0; }
-    });
-    document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === cv; if (this.locked) { this.everLocked = true; this.lockOK = true; this.lockFails = 0; } if (!this.locked && G.screen === 'play' && !this.touch && $('pause').hidden) UI.togglePause(true); });
+    // mouse look. Chrome merges mouse events per frame, and with pointer lock + raw input the merged event's movementX can
+    // carry only part of the motion -> the view lags/skips against the hand. So read every raw sample: pointerrawupdate
+    // (unmerged, https) or each coalesced pointermove sample; a stray spike right after locking is dropped
+    const looking = () => G.screen === 'play' && (this.locked || this.lockOK === false) && !this.touch;
+    const addLook = (dx, dy) => { dx = dx || 0; dy = dy || 0; if (performance.now() - (this.lockAt || 0) < 250 && (Math.abs(dx) > 120 || Math.abs(dy) > 120)) return; this.lookDX += dx; this.lookDY += dy; };
+    const eat = (e) => { if (e.pointerType && e.pointerType !== 'mouse') return; if (!looking()) return; const cs = e.getCoalescedEvents ? e.getCoalescedEvents() : null; if (cs && cs.length > 1) for (const c of cs) addLook(c.movementX, c.movementY); else addLook(e.movementX, e.movementY); };
+    this.rawLook = 'onpointerrawupdate' in window;
+    if (this.rawLook) addEventListener('pointerrawupdate', eat); else addEventListener('pointermove', eat);
+    addEventListener('mousemove', (e) => { if (this.touch) return; if (G.screen === 'drop') G.dropHoverAt(e.clientX, e.clientY); });
+    document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === cv; if (this.locked) { this.lockAt = performance.now(); this.lookDX = this.lookDY = 0; this.everLocked = true; this.lockOK = true; this.lockFails = 0; } if (!this.locked && G.screen === 'play' && !this.touch && $('pause').hidden) UI.togglePause(true); });
     document.addEventListener('pointerlockerror', () => { });
     // ---- touch
     const tp = (e) => { if (e.pointerType === 'touch' && !this.touch) { this.touch = true; UI.setTouch(true); } else if (e.pointerType === 'mouse' && this.touch && !this._stick) { this.touch = false; UI.setTouch(false); } };

@@ -56,6 +56,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-off
 .field{display:flex;flex-direction:column;gap:6px} .field label{font-size:12.5px;color:var(--muted)}
 #nick{font:inherit;color:var(--fg);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;-webkit-user-select:text;user-select:text;width:100%}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border-radius:12px;background:rgba(255,255,255,.06)}
+.tabs2{display:flex;gap:4px;border-bottom:1px solid var(--line)} .tabs2 button{flex:1;min-height:38px;font-weight:700;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px} .tabs2 button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--c1)}
+#cosBox{display:flex;flex-direction:column;gap:7px} #cosBox[hidden]{display:none}
+.cosrow{display:grid;grid-template-columns:42px 40px 1fr 40px;align-items:center;gap:6px} .cosrow span{font-size:13px;color:var(--muted)} .cosrow b{text-align:center;font-size:14px;padding:9px 4px;border-radius:9px;background:rgba(255,255,255,.06);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cosrow button{min-height:40px;border-radius:9px;background:rgba(255,255,255,.08);border:1px solid var(--line);font-size:18px;font-weight:700}
+.cosrow button:active{background:rgba(255,255,255,.2)} #cosBox .hint{font-size:12px;color:var(--muted);margin:2px 0 0}
 .seg button{min-height:42px;border-radius:9px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted)}
 .seg button i{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.7);display:inline-block}
 .seg button[aria-pressed="true"]{background:rgba(255,255,255,.16);color:var(--fg)}
@@ -212,11 +217,13 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
       <div class="lcol">
       <h2>내 캐릭터</h2>
       <div class="field"><label for="nick">닉네임</label><input id="nick" maxlength="12" autocomplete="off" spellcheck="false"></div>
-      <div class="seg" role="group" aria-label="색을 바꿀 부분"><button id="segTop" aria-pressed="true"><i id="dotTop"></i>윗부분</button><button id="segBot" aria-pressed="false"><i id="dotBot"></i>아랫부분</button></div>
-      <div class="picker"><canvas id="sv" width="300" height="150"></canvas><div id="prevBar" class="grad"></div></div>
+      <div class="tabs2" role="tablist" aria-label="꾸미기"><button id="tabColor" role="tab" aria-selected="true">색상</button><button id="tabCos" role="tab" aria-selected="false">의상</button></div>
+      <div class="seg tColor" role="group" aria-label="색을 바꿀 부분"><button id="segTop" aria-pressed="true"><i id="dotTop"></i>윗부분</button><button id="segBot" aria-pressed="false"><i id="dotBot"></i>아랫부분</button></div>
+      <div class="picker tColor"><canvas id="sv" width="300" height="150"></canvas><div id="prevBar" class="grad"></div></div>
+      <div id="cosBox" class="tCos" hidden></div>
       </div><div class="lcol">
-      <input id="hue" type="range" min="0" max="360" value="0" aria-label="색상">
-      <div class="sw" id="swatches"></div>
+      <input id="hue" class="tColor" type="range" min="0" max="360" value="0" aria-label="색상">
+      <div class="sw tColor" id="swatches"></div>
       <div class="field"><label>게임 모드</label><div id="modePick" class="mpick" role="group" aria-label="게임 모드"></div><p id="modeDesc"></p></div>
       <div id="netStat"></div>
       <div class="two"><button class="btn" id="bRandom">랜덤</button><button class="btn primary" id="bReady">준비</button></div>
@@ -463,21 +470,46 @@ void main(){
 }`,
   charV: `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aN; layout(location=2) in vec4 aJ; layout(location=3) in vec4 aW;
-uniform mat4 uVP, uModel; uniform mat4 uBones[${NBONES}]; uniform float uArm[${NBONES}];
-out vec3 vWP; out vec3 vN; out float vH; out float vArm;
+uniform mat4 uVP, uModel; uniform mat4 uBones[${NBONES}]; uniform float uArm[${NBONES}]; uniform float uReg[${NBONES}];
+out vec3 vWP; out vec3 vN; out float vH; out float vArm; out vec4 vRA; out vec4 vRB; out vec3 vObj; out vec3 vON;
+void reg(float w, float r){ vRA += w * vec4(equal(vec4(r), vec4(0.0, 1.0, 2.0, 3.0))); vRB += w * vec4(equal(vec4(r), vec4(4.0, 5.0, 6.0, 7.0))); }
 void main(){
   mat4 sk = aW.x * uBones[int(aJ.x)] + aW.y * uBones[int(aJ.y)] + aW.z * uBones[int(aJ.z)] + aW.w * uBones[int(aJ.w)];
   vArm = aW.x * uArm[int(aJ.x)] + aW.y * uArm[int(aJ.y)] + aW.z * uArm[int(aJ.z)] + aW.w * uArm[int(aJ.w)];
+  vRA = vec4(0.0); vRB = vec4(0.0); reg(aW.x, uReg[int(aJ.x)]); reg(aW.y, uReg[int(aJ.y)]); reg(aW.z, uReg[int(aJ.z)]); reg(aW.w, uReg[int(aJ.w)]);
+  vObj = aPos; vON = aN;
   vec4 w = uModel * (sk * vec4(aPos, 1.0));
   vWP = w.xyz; vN = mat3(uModel) * (mat3(sk) * aN); vH = aPos.y / 1.853;
   gl_Position = uVP * w;
 }`,
   charF: `#version 300 es
 precision highp float;
-in vec3 vWP; in vec3 vN; in float vH; in float vArm;
-uniform vec3 uC1, uC2; uniform float uFlash, uAlpha, uTime, uGlow, uArmsOnly;
+in vec3 vWP; in vec3 vN; in float vH; in float vArm; in vec4 vRA; in vec4 vRB; in vec3 vObj; in vec3 vON;
+uniform vec3 uC1, uC2; uniform float uFlash, uAlpha, uTime, uGlow, uArmsOnly; uniform vec2 uCos;
 ${GLSL_LIT}
 out vec4 o;
+float hsh(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float vnoise(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(hsh(i), hsh(i + vec3(1,0,0)), f.x), mix(hsh(i + vec3(0,1,0)), hsh(i + vec3(1,1,0)), f.x), f.y), mix(mix(hsh(i + vec3(0,0,1)), hsh(i + vec3(1,0,1)), f.x), mix(hsh(i + vec3(0,1,1)), hsh(i + vec3(1,1,1)), f.x), f.y), f.z); }
+vec3 camo(vec3 p){ float n = vnoise(p * 5.0) * 0.65 + vnoise(p * 11.0) * 0.35; return n < 0.42 ? vec3(0.05, 0.07, 0.025) : n < 0.55 ? vec3(0.13, 0.15, 0.05) : n < 0.68 ? vec3(0.09, 0.06, 0.03) : vec3(0.2, 0.19, 0.11); }
+vec3 topCol(float s, vec3 base, inout float sleeve){
+  vec3 p = vObj; float front = step(0.25, vON.z);
+  if (s < 1.5) { sleeve = 0.0; return mix(uC1, vec3(0.9), step(0.5, fract(p.y * 9.0))); }
+  if (s < 2.5) { float a = step(0.72, fract(p.x * 6.0)), b = step(0.72, fract(p.y * 6.0)), l = step(0.95, fract(p.x * 6.0)) + step(0.95, fract(p.y * 6.0)); return mix(uC1 * 0.42, uC1 * 1.05 + 0.04, (a + b) * 0.5) * (1.0 - l * 0.5); }
+  if (s < 3.5) { float v = front * step(abs(p.x), (p.y - 1.08) * 0.55) * step(p.y, 1.47); float tie = v * step(abs(p.x), 0.024 + (1.42 - p.y) * 0.03) * step(1.12, p.y);
+    return mix(mix(vec3(0.028, 0.03, 0.04), vec3(0.85, 0.86, 0.88), v), uC1 * 0.9, tie); }
+  if (s < 4.5) return camo(p);
+  if (s < 5.5) { float pocket = front * step(1.0, p.y) * step(p.y, 1.13) * step(abs(p.x), 0.13); float cord = front * step(1.33, p.y) * step(p.y, 1.46) * step(abs(abs(p.x) - 0.04), 0.006); return mix(uC1 * (1.0 - pocket * 0.35), vec3(0.95), cord); }
+  float band = step(0.82, fract(p.y * 5.0)); return mix(vec3(0.32, 0.34, 0.38), vec3(0.62, 0.64, 0.7), 0.35 + 0.65 * smoothstep(-0.2, 1.0, vON.y + vON.z * 0.5)) * (1.0 - band * 0.35);
+}
+vec3 botCol(float s, inout float shin){
+  vec3 p = vObj; float side = step(0.72, abs(vON.x));
+  if (s < 1.5) return mix(vec3(0.045, 0.085, 0.2), vec3(0.08, 0.13, 0.27), vnoise(p * 60.0)) * (1.0 + side * 0.4);
+  if (s < 2.5) return camo(p + 3.0);
+  if (s < 3.5) return vec3(0.035, 0.038, 0.048) * (1.0 + step(abs(p.x - sign(p.x) * 0.1), 0.006) * 1.5);
+  if (s < 4.5) { float st = side * step(0.25, fract(p.y * 7.0 + 0.1)) * 0.0 + step(0.84, abs(vON.x)); return mix(uC2 * 0.8, vec3(0.95), st); }
+  shin = 0.0; return uC1 * 0.55;
+}
 void main(){
   if (uArmsOnly > 0.5 && vArm < 0.5) discard;
   if (uAlpha < 0.999) {
@@ -491,6 +523,8 @@ void main(){
   vec3 n = normalize(mix(normalize(vN), fn, 0.55));
   float h = smoothstep(0.06, 0.94, vH);
   vec3 alb = mix(uC2, uC1, h);
+  if (uCos.x > 0.5) { float sleeve = 1.0; vec3 tc = topCol(uCos.x, alb, sleeve); alb = mix(alb, tc, clamp(vRA.z + vRA.w + vRB.x * sleeve, 0.0, 1.0)); }
+  if (uCos.y > 0.5) { float shin = 1.0; vec3 bc = botCol(uCos.y, shin); alb = mix(alb, bc, clamp(vRA.x + vRA.y * shin, 0.0, 1.0)); alb = mix(alb, uCos.y > 3.5 ? vec3(0.85) : vec3(0.025), clamp(vRB.w, 0.0, 1.0)); }
   vec3 c = lighting(vWP, n, alb);
   float rim = pow(1.0 - max(dot(n, v), 0.0), 2.6);
   c += (alb * 0.9 + 0.08) * rim * (0.55 + uGlow);
@@ -795,11 +829,11 @@ const R = {
     // characters
     gl.disable(gl.CULL_FACE);
     P = this.progs.char; gl.useProgram(P.p); this.setLit(P); gl.uniform1f(P.u('uTime'), this.time); gl.uniform1f(P.u('uArmsOnly'), 0);
-    if (!this._armSent && this.armMask) { gl.uniform1fv(P.u('uArm[0]'), this.armMask); this._armSent = true; }
+    if (!this._armSent && this.armMask) { gl.uniform1fv(P.u('uArm[0]'), this.armMask); if (this.regMask) gl.uniform1fv(P.u('uReg[0]'), this.regMask); this._armSent = true; }
     for (const c of sc.chars) {
       if (c.hidden) continue;
       gl.uniformMatrix4fv(P.u('uModel'), false, c.model); gl.uniformMatrix4fv(P.u('uBones[0]'), false, c.skin);
-      gl.uniform3fv(P.u('uC1'), c.c1); gl.uniform3fv(P.u('uC2'), c.c2); gl.uniform1f(P.u('uFlash'), c.flash || 0); gl.uniform1f(P.u('uAlpha'), c.alpha === undefined ? 1 : c.alpha); gl.uniform1f(P.u('uGlow'), c.glow || 0);
+      gl.uniform3fv(P.u('uC1'), c.c1); gl.uniform3fv(P.u('uC2'), c.c2); gl.uniform1f(P.u('uFlash'), c.flash || 0); gl.uniform1f(P.u('uAlpha'), c.alpha === undefined ? 1 : c.alpha); gl.uniform1f(P.u('uGlow'), c.glow || 0); gl.uniform2f(P.u('uCos'), c.cos ? c.cos[2] : 0, c.cos ? c.cos[3] : 0);
       gl.bindVertexArray(c.mesh.vao); gl.drawElements(gl.TRIANGLES, c.mesh.count, gl.UNSIGNED_SHORT, 0); this.drawCalls++;
     }
     // particles
@@ -821,7 +855,7 @@ const R = {
       P = this.progs.char; gl.useProgram(P.p); this.setLit(P); gl.uniformMatrix4fv(P.u('uVP'), false, vvp); gl.uniform1f(P.u('uArmsOnly'), 1);
       for (const c of sc.vm.chars) {
         gl.uniformMatrix4fv(P.u('uModel'), false, c.model); gl.uniformMatrix4fv(P.u('uBones[0]'), false, c.skin);
-        gl.uniform3fv(P.u('uC1'), c.c1); gl.uniform3fv(P.u('uC2'), c.c2); gl.uniform1f(P.u('uFlash'), c.flash || 0); gl.uniform1f(P.u('uAlpha'), 1); gl.uniform1f(P.u('uGlow'), 0);
+        gl.uniform3fv(P.u('uC1'), c.c1); gl.uniform3fv(P.u('uC2'), c.c2); gl.uniform1f(P.u('uFlash'), c.flash || 0); gl.uniform1f(P.u('uAlpha'), 1); gl.uniform1f(P.u('uGlow'), 0); gl.uniform2f(P.u('uCos'), c.cos ? c.cos[2] : 0, c.cos ? c.cos[3] : 0);
         gl.bindVertexArray(c.mesh.vao); gl.drawElements(gl.TRIANGLES, c.mesh.count, gl.UNSIGNED_SHORT, 0); this.drawCalls++;
       }
       gl.uniform1f(P.u('uArmsOnly'), 0);
@@ -1024,6 +1058,14 @@ const ARENA = 48;          // half size in metres; invisible barrier sits here
 const STEP = 0.56;         // max auto step-up
 const P_RADIUS = 0.36, P_HEIGHT = 1.8;
 const THEMES = [0.58, 0.02, 0.08, 0.14, 0.33, 0.46, 0.52, 0.66, 0.76, 0.86, 0.94];
+const A_ = ARENA;
+const MAP_KINDS = [ // each round picks one: different layouts, not just a different colour
+  { id: 'plaza', name: '중앙 광장', sat: 1, fog: 1 },
+  { id: 'city', name: '도시 블록', sat: 0.7, fog: 1.8 },
+  { id: 'canyon', name: '협곡', sat: 1.15, fog: 1.2 },
+  { id: 'yard', name: '컨테이너 야드', sat: 0.85, fog: 1.3 },
+  { id: 'temple', name: '신전 유적', sat: 0.6, fog: 1.1 },
+];
 
 class GameMap {
   constructor(seed) {
@@ -1039,6 +1081,11 @@ class GameMap {
     this.box(-A, -3, -A, A, 0, A, 1).floor = true;
     // floating slab underside (decor only)
     for (let i = 1; i <= 5; i++) { const s = A - i * 6.5; this.deco.push({ x0: -s, y0: -3 - i * 3.2, z0: -s, x1: s, y1: -3 - (i - 1) * 3.2, z1: s, ramp: -1, shade: 0.9 - i * 0.07 }); }
+    let k = MAP_KINDS[Math.floor(rng() * MAP_KINDS.length)]; if (typeof window !== 'undefined' && window.__mapKind) k = MAP_KINDS.find((m) => m.id === window.__mapKind) || k; this.kind = k.id; this.kindName = k.name;
+    this['gen_' + k.id](rng);
+  }
+  // shared helpers for the layouts: everything is placed once and mirrored through the centre (fair spawns both sides)
+  kit(rng) {
     const CELL = 8, N = 12, occ = new Uint8Array(N * N);
     const R = (a, b) => a + rng() * (b - a), RI = (a, b) => Math.floor(R(a, b + 1)), pick = (arr) => arr[Math.floor(rng() * arr.length)];
     const place = (parts, cx, cz, rot) => {
@@ -1051,6 +1098,15 @@ class GameMap {
       }
     };
     const B = (x0, y0, z0, x1, y1, z1, shade) => ({ x0, y0, z0, x1, y1, z1, shade: shade || R(0.9, 1.1) });
+    const Rp = (x0, y0, z0, x1, y1, z1, ramp) => ({ x0, y0, z0, x1, y1, z1, ramp, shade: 1.06 });
+    const cellC = (i) => (i - N / 2 + 0.5) * CELL;
+    const mark = (cx, cz, w, d) => { d = d || w; for (let a = 0; a < w; a++) for (let b = 0; b < d; b++) { const x = cx + a, z = cz + b; occ[z * N + x] = 1; occ[(N - 1 - z) * N + (N - 1 - x)] = 1; } };
+    const free = (cx, cz, w, d) => { d = d || w; for (let a = 0; a < w; a++) for (let b = 0; b < d; b++) { const x = cx + a, z = cz + b; if (x < 0 || z < 0 || x >= N || z >= N || occ[z * N + x] || occ[(N - 1 - z) * N + (N - 1 - x)]) return false; if ((N - 1 - x) >= cx && (N - 1 - x) < cx + w && (N - 1 - z) >= cz && (N - 1 - z) < cz + d) return false; } return true; };
+    return { CELL, N, occ, R, RI, pick, place, B, Rp, cellC, mark, free };
+  }
+  // 1) the original open plaza: ziggurat in the middle, mixed cover
+  gen_plaza(rng) {
+    const { CELL, N, occ, R, RI, pick, place, B, cellC, mark, free } = this.kit(rng);
     const prefabs1 = [
       () => { const w = R(1.6, 2.6), d = R(1.6, 2.6), h = R(5, 11), o = [B(-w, 0, -d, w, h, d)]; if (rng() < 0.6) { const k = R(0.5, 0.75); o.push(B(-w * k, h, -d * k, w * k, h + R(1.5, 4), d * k)); } if (rng() < 0.5) o.push(B(w, 0, -d * 0.6, w + 1.4, 1.05, d * 0.6)); return o; },
       () => { const o = []; for (let i = 0; i < 3; i++) { const x = R(-2.6, 2.6), z = R(-2.6, 2.6), w = R(0.7, 1.7), d = R(0.5, 1.2); o.push(B(x - w, 0, z - d, x + w, R(0.95, 1.25), z + d)); } return o; },
@@ -1093,9 +1149,6 @@ class GameMap {
         return o;
       },
     ];
-    const cellC = (i) => (i - N / 2 + 0.5) * CELL;
-    const mark = (cx, cz, w) => { for (let a = 0; a < w; a++) for (let b = 0; b < w; b++) { const x = cx + a, z = cz + b; occ[z * N + x] = 1; occ[(N - 1 - z) * N + (N - 1 - x)] = 1; } };
-    const free = (cx, cz, w) => { for (let a = 0; a < w; a++) for (let b = 0; b < w; b++) { const x = cx + a, z = cz + b; if (x < 0 || z < 0 || x >= N || z >= N || occ[z * N + x] || occ[(N - 1 - z) * N + (N - 1 - x)]) return false; if ((N - 1 - x) >= cx && (N - 1 - x) < cx + w && (N - 1 - z) >= cz && (N - 1 - z) < cz + w) return false; } return true; };
     // centre landmark (already point-symmetric: place half and let the mirror complete it)
     { const n = 5, o = []; for (let i = 0; i < n; i++) { const s = 7 - i * 1.1; o.push(B(-s, i * 0.5, -s, 0, (i + 1) * 0.5, s, 1 + i * 0.03)); } o.push(B(-1.3, n * 0.5, -1.3, 0, n * 0.5 + 13, 1.3, 1.12)); place(o, 0, 0, 0); for (let x = 5; x <= 6; x++) for (let z = 5; z <= 6; z++) occ[z * N + x] = 1; }
     let tries = 0, placed = 0;
@@ -1103,6 +1156,100 @@ class GameMap {
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
       if (!free(x, z, 1)) continue; const edge = x === 0 || z === 0 || x === N - 1 || z === N - 1;
       if (rng() < (edge ? 0.3 : 0.5)) { mark(x, z, 1); place(pick(prefabs1)(), cellC(x) + R(-0.6, 0.6), cellC(z) + R(-0.6, 0.6), RI(0, 3)); }
+    }
+  }
+  // 2) city blocks: tall buildings on a street grid, rooftops reached by ramps, cars as cover, a square in the middle
+  gen_city(rng) {
+    const { R, RI, pick, place, B, Rp } = this.kit(rng), S = 16, st = R(4.6, 5.6);
+    const car = (x, z, along) => { const l = 2.1, w = 0.9; return along ? B(x - w, 0, z - l, x + w, 1.25, z + l, 0.8) : B(x - l, 0, z - w, x + l, 1.25, z + w, 0.8); };
+    for (let bz = 0; bz < 6; bz++) for (let bx = 0; bx < 6; bx++) {
+      if (bz * 6 + bx >= 18) continue; // the other half comes from the mirror
+      const cx = -A_ + S / 2 + bx * S, cz = -A_ + S / 2 + bz * S, h = (S - st) / 2, o = [];
+      const central = (bx === 2 || bx === 3) && (bz === 2 || bz === 3);
+      if (central) { // town square: fountain ring + low planters
+        if (bx === 2 && bz === 2) { o.push(B(S / 2 - 3.2, 0, S / 2 - 3.2, S / 2, 0.9, S / 2 - 2.6)); o.push(B(S / 2 - 3.2, 0, S / 2 - 3.2, S / 2 - 2.6, 0.9, S / 2)); o.push(B(S / 2 - 0.6, 0, S / 2 - 0.6, S / 2, R(4, 7), S / 2, 1.15)); o.push(B(-3, 0, -1, -1, 1.0, 1)); }
+        else o.push(B(-2.4, 0, -0.5, 2.4, 1.0, 0.5));
+        place(o, cx, cz, 0); continue;
+      }
+      const type = rng();
+      if (type < 0.34) { // tower with a low annex and a ramp to the annex roof
+        const ht = R(9, 16), ah = R(2.8, 3.4); o.push(B(-h, 0, -h, h * 0.15, ht, h));
+        o.push(B(h * 0.15, 0, -h, h, ah, h * 0.1, 1.04)); o.push(Rp(h * 0.15, 0, h * 0.1, h, ah, h * 0.1 + ah * 2.1, 3));
+        if (rng() < 0.6) o.push(B(h * 0.6, ah, -h, h, ah + 0.95, -h + 0.4));
+      } else if (type < 0.6) { // two buildings and an alley
+        const g = R(1.6, 2.4); o.push(B(-h, 0, -h, -g, R(6, 12), h)); o.push(B(g, 0, -h, h, R(4, 10), h)); if (rng() < 0.6) o.push(B(-g + 0.3, 0, R(-2, 2), g - 0.3, 1.1, R(2.5, 3.5)));
+      } else if (type < 0.82) { // low flat-roof building with a ramp and parapets (rooftop fights)
+        const ht = R(3, 3.6); o.push(B(-h, 0, -h, h, ht, h * 0.25)); o.push(Rp(-h, 0, h * 0.25, -h + 3, ht, h * 0.25 + ht * 2.1, 3));
+        o.push(B(-h, ht, -h, h, ht + 0.95, -h + 0.35)); o.push(B(h - 0.35, ht, -h, h, ht + 0.95, h * 0.25)); if (rng() < 0.6) o.push(B(-1, ht, -2, 1.2, ht + 1.1, -0.8));
+        o.push(car(h * 0.4, h * 0.65, false));
+      } else { // pocket park: trees (pillars) and benches
+        for (let t = 0; t < 4; t++) { const x = R(-h + 1, h - 1), z = R(-h + 1, h - 1); o.push(B(x - 0.35, 0, z - 0.35, x + 0.35, R(3, 4.5), z + 0.35, 0.85)); }
+        o.push(B(-h, 0, -h, h, 0.45, -h + 0.5)); o.push(B(-2, 0, -0.4, 2, 0.95, 0.4));
+      }
+      place(o, cx, cz, RI(0, 3));
+      // street furniture: cars and barriers in the street east/south of this block
+      if (rng() < 0.7) place([car(S / 2, R(-h, h), true)], cx, cz, 0);
+      if (rng() < 0.5) place([car(R(-h, h), S / 2, false)], cx, cz, 0);
+    }
+  }
+  // 3) canyon: big plateaus at two heights with ramps, boulders on the valley floor, a stone arch in the middle
+  gen_canyon(rng) {
+    const { CELL, N, R, RI, place, B, Rp, cellC, mark, free } = this.kit(rng);
+    // centre arch + mound
+    place([B(-6, 0, -1.2, -4.2, 6.5, 1.2, 0.95), Object.assign(B(-6, 6.5, -1.4, 0, 7.6, 1.4, 1), { over: true }), B(-2.6, 0, -2.6, 0, 0.5, 2.6, 1.02)], 0, 0, 0);
+    for (let x = 5; x <= 6; x++) for (let z = 5; z <= 6; z++) { mark(x, z, 1); }
+    let placed = 0, tries = 0;
+    while (placed < 6 && tries++ < 300) {
+      const w = RI(2, 3), d = RI(1, 2), cx = RI(0, N - w), cz = RI(0, N - d); if (!free(cx, cz, w, d)) continue;
+      const x0 = cellC(cx) - CELL / 2 + R(0.6, 1.4), x1 = cellC(cx + w - 1) + CELL / 2 - R(0.6, 1.4), z0 = cellC(cz) - CELL / 2 + R(0.6, 1.4), z1 = cellC(cz + d - 1) + CELL / 2 - R(0.6, 1.4);
+      const ht = rng() < 0.5 ? R(2.6, 3.2) : R(4.4, 5.4), o = [B(x0, 0, z0, x1, ht, z1, R(0.85, 1))];
+      // ramps down the long sides (inside the plateau's own cells so nothing else lands on them)
+      const L = ht * 2.1, mx = (x0 + x1) / 2; o.push(Rp(mx - 1.6, 0, z1, mx + 1.6, ht, z1 + Math.min(L, 6.5), 3));
+      if (rng() < 0.7) o.push(Rp(x0 - Math.min(L, 6.5), 0, (z0 + z1) / 2 - 1.6, x0, ht, (z0 + z1) / 2 + 1.6, 0));
+      if (rng() < 0.6) { const tx = R(x0 + 1, x1 - 4), tz = R(z0 + 0.5, z1 - 3); o.push(B(tx, ht, tz, tx + R(2, 3.5), ht + R(1.0, 2.6), tz + R(1.5, 2.5), 0.92)); }
+      if (rng() < 0.5) o.push(B(x0, ht, z0, x0 + 0.5, ht + 0.95, z1));
+      mark(cx, cz, w, d); place(o, 0, 0, 0); placed++;
+    }
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) { // boulders and rock spires on the open floor
+      if (!free(x, z, 1) || rng() > 0.55) continue; mark(x, z, 1); const o = [];
+      for (let k = RI(1, 3); k > 0; k--) { const bx = R(-2.5, 2.5), bz = R(-2.5, 2.5), s = R(0.6, 1.6); o.push(B(bx - s, 0, bz - s * R(0.6, 1.2), bx + s, R(0.9, 2.2), bz + s, R(0.82, 0.95))); }
+      if (rng() < 0.25) o.push(B(-0.7, 0, -0.7, 0.7, R(5, 9), 0.7, 0.88));
+      place(o, cellC(x), cellC(z), RI(0, 3));
+    }
+  }
+  // 4) container yard: long rows of stacked containers with aisles, ramps onto the stacks, a gantry crane over the middle
+  gen_yard(rng) {
+    const { R, RI, place, B, Rp } = this.kit(rng), rot = RI(0, 1), H = 2.6, W = 1.25;
+    const ct = (x, z, len, lv, sh) => B(x - len / 2, lv * H, z - W, x + len / 2, (lv + 1) * H, z + W, sh || R(0.85, 1.12));
+    const all = [];
+    // centre crane: two legs and an overhead beam, an open work area underneath
+    all.push(B(-9, 0, -1.2, -7.8, 11, 1.2, 0.8), Object.assign(B(-9, 11, -1.4, 0, 12.2, 1.4, 0.8), { over: true }), B(-4, 0, -4, -2.6, 1.1, -2.4));
+    for (let row = 0; row < 6; row++) {
+      const z = -40 + row * 8; if (Math.abs(z) < 6) continue; // keep the middle lane open
+      let x = -A_ + R(1, 4);
+      while (x < A_ - 6) {
+        const len = rng() < 0.5 ? 6 : 12; if (x + len > A_ - 2) break; const cx = x + len / 2;
+        if (Math.abs(cx) < 9 && Math.abs(z) < 12) { x += len + R(3, 5); continue; }
+        const lv = rng() < 0.45 ? 1 : rng() < 0.75 ? 2 : 3; for (let l = 0; l < lv; l++) all.push(ct(cx + (l ? R(-0.4, 0.4) : 0), z, len - (l ? R(0, 1) : 0), l));
+        if (lv >= 2 && rng() < 0.55) all.push(Rp(cx - len / 2 + 0.2, 0, z + W, cx - len / 2 + 3, H, z + W + H * 2.1, 3)); // ramp to the 1st tier
+        x += len + R(3.4, 6.5);
+      }
+      if (rng() < 0.6) { const bx = R(-30, 30); all.push(B(bx - 0.9, 0, z + 3.6, bx + 0.9, 1.1, z + 4.4, 0.9)); } // barrels/crates in the aisle
+    }
+    // the rows only need half: drop the mirrored half before placing
+    place(all.filter((c) => (c.z0 + c.z1) / 2 < 0 || ((c.z0 + c.z1) / 2 === 0 && (c.x0 + c.x1) / 2 < 0) || c.over), 0, 0, rot);
+  }
+  // 5) temple ruins: colonnades with lintels, broken walls, raised terraces on the rim, a stepped altar with obelisks
+  gen_temple(rng) {
+    const { CELL, N, R, RI, pick, place, B, Rp, cellC, mark, free } = this.kit(rng);
+    { const o = []; for (let i = 0; i < 3; i++) { const s = 8 - i * 2; o.push(B(-s, i * 0.5, -s, 0, (i + 1) * 0.5, s, 1 + i * 0.03)); } o.push(B(-4.5, 1.5, -4.5, -3.3, 1.5 + R(6, 9), -3.3, 1.12)); o.push(B(-4.5, 1.5, 3.3, -3.3, 1.5 + R(6, 9), 4.5, 1.12)); place(o, 0, 0, 0); for (let x = 4; x <= 7; x++) for (let z = 4; z <= 7; z++) mark(x, z, 1); }
+    const colonnade = () => { const o = [], n = RI(3, 5), h = R(4, 5.2), gap = 2.6, len = (n - 1) * gap; for (let i = 0; i < n; i++) { if (rng() < 0.15) { o.push(B(-len / 2 + i * gap - 0.45, 0, -0.45, -len / 2 + i * gap + 0.45, R(0.8, 2), 0.45)); continue; } o.push(B(-len / 2 + i * gap - 0.45, 0, -0.45, -len / 2 + i * gap + 0.45, h, 0.45)); } const l = B(-len / 2 - 0.6, h, -0.65, len / 2 + 0.6, h + 0.7, 0.65); l.over = true; o.push(l); return o; };
+    const ruin = () => { const o = [], l = R(4, 6.5), h = R(2.4, 3.6); o.push(B(-l / 2, 0, -0.35, -0.6, h, 0.35)); o.push(B(0.8, 0, -0.35, l / 2, h * R(0.4, 0.8), 0.35)); o.push(B(R(-2, 2), 0, R(1.2, 2.2), R(2.2, 3), R(0.7, 1.1), R(2.6, 3.2))); return o; };
+    const terrace = () => { const h = R(1.6, 2.2), o = [B(-3.6, 0, -3.6, 3.6, h, 3.6, 0.96)]; o.push(Rp(-1.4, 0, 3.6, 1.4, h, 3.6 + h * 2.1, 3)); o.push(B(-3.6, h, -3.6, 3.6, h + 0.9, -3.2)); if (rng() < 0.5) o.push(B(2.4, h, -2.4, 3.2, h + R(2, 3.5), -1.6)); return o; };
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+      if (!free(x, z, 1)) continue; const edge = x === 0 || z === 0 || x === N - 1 || z === N - 1;
+      if (edge && rng() < 0.45) { mark(x, z, 1); place(terrace(), cellC(x), cellC(z), x === 0 ? 3 : x === N - 1 ? 1 : z === 0 ? 0 : 2); continue; }
+      if (rng() < 0.6) { mark(x, z, 1); place(rng() < 0.55 ? colonnade() : ruin(), cellC(x) + R(-0.5, 0.5), cellC(z) + R(-0.5, 0.5), RI(0, 3)); }
     }
   }
   rampT(c, x, z) { switch (c.ramp) { case 0: return (x - c.x0) / (c.x1 - c.x0); case 1: return (c.x1 - x) / (c.x1 - c.x0); case 2: return (z - c.z0) / (c.z1 - c.z0); default: return (c.z1 - z) / (c.z1 - c.z0); } }
@@ -1241,10 +1388,10 @@ class GameMap {
     return R.mesh(new Float32Array(v), [[0, 3], [1, 3], [2, 2], [3, 2], [4, 1]]);
   }
   applyTheme() {
-    const h = this.hue, e = R.env, L = toLin;
-    e.base = L(hsv(h, 0.62, 0.78));
+    const h = this.hue, e = R.env, L = toLin, k = MAP_KINDS.find((m) => m.id === this.kind) || MAP_KINDS[0], sat = k.sat;
+    e.base = L(hsv(h, 0.62 * sat, 0.78));
     e.zenith = L(hsv(h + 0.04, 0.72, 0.42)); e.horizon = L(hsv(h - 0.03, 0.30, 1.0)).map(v => v * 1.15); e.voidCol = L(hsv(h + 0.06, 0.75, 0.16));
-    e.fogCol = L(hsv(h - 0.02, 0.36, 0.95)); e.fogDen = 0.000055;
+    e.fogCol = L(hsv(h - 0.02, 0.36 * sat, 0.95)); e.fogDen = 0.000055 * k.fog;
     e.sunCol = L(hsv(h - 0.08, 0.18, 1.0)).map(v => v * 2.5);
     e.ambSky = L(hsv(h + 0.05, 0.45, 0.72)).map(v => v * 0.75); e.ambGnd = L(hsv(h + 0.1, 0.6, 0.35)).map(v => v * 0.55);
     const ce = Math.cos(this.sunEl); e.sunDir = v3norm([Math.cos(this.sunAz) * ce, Math.sin(this.sunEl), Math.sin(this.sunAz) * ce]);
@@ -1380,7 +1527,6 @@ const WEAPONS = {
   shotgun: { id: 3, key: 'shotgun', name: '샷건', dmg: 17, head: 1.5, pellets: 12, rpm: 210, auto: true, mag: 7, reserve: 21, reload: 2.2, err: 0.058, adsErr: 0.058, runErr: 0.012, airErr: 0.04, grow: 0, growMax: 0, kickV: 0.028, kickH: 0.006, climb: 2, recov: 0.4, zoom: 1, falloff: [8, 22, 0.35], col: [1.0, 0.45, 0.15], muz: 0.74, snd: 'shotgun', botRange: 7 },
   minigun: { id: 5, key: 'minigun', name: '미니건', power: true, heavy: true, spin: 0.5, dmg: 15, head: 2, pellets: 1, rpm: 1500, auto: true, mag: 160, reserve: 0, reload: 3, err: 0.022, adsErr: 0.02, runErr: 0.03, airErr: 0.08, grow: 0.0006, growMax: 0.016, kickV: 0.0016, kickH: 0.004, climb: 12, recov: 0.3, zoom: 1, falloff: [25, 50, 0.7], col: [1.0, 0.25, 0.2], muz: 0.95, snd: 'minigun', botRange: 16 },
   rpg: { id: 6, key: 'rpg', name: 'RPG', power: true, rocket: true, dmg: 140, head: 1, pellets: 1, rpm: 120, auto: true, mag: 1, reserve: 5, reload: 1.1, err: 0.004, adsErr: 0.002, runErr: 0.03, airErr: 0.06, grow: 0, growMax: 0, kickV: 0.07, kickH: 0.004, climb: 1, recov: 0.6, zoom: 1.2, falloff: [300, 400, 1], col: [1.0, 0.62, 0.1], muz: 0.72, snd: 'rpg', botRange: 20 },
-  golden: { id: 7, key: 'golden', name: '황금 권총', dmg: 250, head: 1, pellets: 1, rpm: 160, auto: false, mag: 1, reserve: Infinity, reload: 0.9, err: 0.003, adsErr: 0.0015, runErr: 0.02, airErr: 0.08, grow: 0, growMax: 0, kickV: 0.03, kickH: 0.003, climb: 1, recov: 0.4, zoom: 1.2, falloff: [300, 400, 1], col: [1.0, 0.78, 0.18], muz: 0.34, snd: 'pistol', botRange: 18 },
   sniper: { id: 4, key: 'sniper', name: '스나이퍼', dmg: 150, head: 1.7, pellets: 1, rpm: 36, auto: false, mag: 5, reserve: 10, reload: 3.7, err: 0.09, adsErr: 0, runErr: 0.12, airErr: 0.2, grow: 0, growMax: 0, kickV: 0.05, kickH: 0.004, climb: 1, recov: 0.6, zoom: 2.5, scope: true, falloff: [300, 400, 1], col: [0.95, 0.3, 1.0], muz: 1.05, snd: 'sniper', botRange: 38 },
 };
 // recoil pattern for shot n (0 = first shot): [pitch up, yaw] in radians
@@ -1390,7 +1536,7 @@ function recoilAt(w, n) {
   const h = n > c ? Math.sin((n - c) * 0.85 + w.id) * w.kickH * Math.min(1, (n - c) / 2.5) * 3.2 : Math.sin(n * 1.7) * w.kickH * 0.25;
   return [v, h];
 }
-const WEAPON_LIST = [WEAPONS.pistol, WEAPONS.smg, WEAPONS.rifle, WEAPONS.shotgun, WEAPONS.sniper, WEAPONS.minigun, WEAPONS.rpg, WEAPONS.golden];
+const WEAPON_LIST = [WEAPONS.pistol, WEAPONS.smg, WEAPONS.rifle, WEAPONS.shotgun, WEAPONS.sniper, WEAPONS.minigun, WEAPONS.rpg];
 const POWER = ['minigun', 'rpg'], POWER_CHANCE = 0.07, MAX_WID = WEAPON_LIST.length - 1;
 const SPAWNABLE = ['smg', 'rifle', 'shotgun', 'sniper'];
 const HEAD_MULT = 1.7, GRENADE_MAX = 3, GRENADE_COL = [0.45, 1.0, 0.35];
@@ -1421,7 +1567,6 @@ function buildGunMeshes() {
     for (let i = 0; i < 6; i++) { const a = i / 6 * TAU, x = Math.cos(a) * 0.032, y = 0.015 + Math.sin(a) * 0.032; o.push([x - 0.011, y - 0.011, 0.2, x + 0.011, y + 0.011, 0.95, D]); }
     defs.minigun = o;
   }
-  { const Au = [0.95, 0.72, 0.16], Ad = [0.55, 0.38, 0.08]; defs.golden = [[-0.018, 0.02, -0.07, 0.018, 0.075, 0.2, Au], [-0.016, -0.09, -0.07, 0.016, 0.03, -0.01, Ad], [-0.02, 0.075, -0.04, 0.02, 0.085, 0.16, [1, 0.9, 0.5]], [-0.008, 0.035, 0.2, 0.008, 0.06, 0.23, Ad]]; }
   defs.rpg = [[-0.05, -0.02, -0.5, 0.05, 0.08, 0.5, [0.2, 0.26, 0.14]], [-0.06, -0.03, -0.56, 0.06, 0.09, -0.48, D], [-0.018, -0.13, -0.02, 0.018, -0.02, 0.04, D], [-0.018, -0.13, 0.16, 0.018, -0.02, 0.22, D], [-0.03, 0.08, 0.04, 0.03, 0.12, 0.12, D],
     [-0.032, 0.0, 0.5, 0.032, 0.06, 0.62, acc('rpg')], [-0.02, 0.01, 0.62, 0.02, 0.05, 0.72, acc('rpg')], [-0.052, -0.022, 0.3, 0.052, 0.082, 0.34, acc('rpg')]];
   for (const k in defs) GunMeshes[k] = R.mesh(boxMeshData(defs[k]), [[0, 3], [1, 3], [2, 3]]);
@@ -1614,7 +1759,7 @@ class Player {
   constructor(kind, name, c1, c2) {
     this.id = NEXT_ID++; this.kind = kind; this.name = name; this.pos = [0, 0, 0]; this.vel = [0, 0, 0]; this.yaw = 0; this.pitch = 0;
     this.anim = new Animator(); this.model = M4.create(); this.gunM = M4.create(); this.headPos = [0, 1.6, 0]; this.muzzle = [0, 1.4, 0];
-    this.state = 'out'; this.hp = 100; this.kills = 0; this.assists = 0; this.deaths = 0; this.grenades = 0; this.team = -1; this.gems = 0; this.pts = 0; this.lvl = 0;
+    this.state = 'out'; this.hp = 100; this.kills = 0; this.assists = 0; this.deaths = 0; this.grenades = 0; this.team = -1; this.gems = 0; this.pts = 0; this.cos = [0, 0, 0, 0];
     this.inp = { f: 0, s: 0, fire: false, aim: false, jump: false, crouch: false, sprint: false, reload: false, grenade: false, swap: false, melee: false };
     this.prev = {}; this.c1 = [1, 1, 1]; this.c2 = [1, 1, 1]; this.setColors(c1, c2);
     this.rd = { mesh: null, model: this.model, skin: this.anim.skin, c1: this.c1, c2: this.c2, flash: 0, alpha: 1, glow: 0, hidden: false, noShadow: false };
@@ -1788,7 +1933,8 @@ class Player {
   }
   damage(amt, attacker, head, wkey, dir) {
     if (this.state !== 'live' || this.invuln > 0 || G.match.state !== 'play' || GM.ally(attacker, this)) return false;
-    if (attacker && attacker.kind === 'bot') amt *= this.kind === 'bot' ? 1.15 : 0.6;
+    if (GM.isJug(this)) amt *= JUG_TAKE;
+    if (attacker && attacker.kind === 'bot') amt *= this.kind === 'bot' ? 1.15 : GM.isJug(this) ? 1 : 0.6;
     this.hp -= amt; this.sinceHit = 0; this.flash = 1;
     if (attacker && attacker !== this) { const k = attacker.id, e = this.damagers[k] || (this.damagers[k] = { p: attacker, d: 0, t: 0 }); e.d += amt; e.t = G.now; this.lastAttacker = attacker; this.lastAttackT = G.now; }
     if (!this.anim.acting) this.anim.play('Hit_Reaction', { mask: 1, t0: 0.35, t1: 1.3, rate: 2.4, fadeIn: 0.04, fadeOut: 0.2, weight: 0.55 });
@@ -1860,7 +2006,7 @@ class Bot {
         if (!aware || q.invuln > 0) continue; if (!map.los(p.pos[0], ey, p.pos[2], q.pos[0], q.pos[1] + 1.2, q.pos[2])) continue;
         const provoked = (p.lastAttacker === q && now - p.lastAttackT < 4) || d < 6;
         if (q.kind !== 'bot' && !provoked && q !== this.target) { let n = 0; for (const b of G.bots) if (b !== this && b.target === q && b.p.state === 'live') n++; if (n >= 2) continue; }
-        const s = d - (q === this.target ? 10 : 0) - (p.lastAttacker === q ? 6 : 0) + (q.kind !== 'bot' && !provoked ? 7 : 0); if (s < bs) { bs = s; best = q; }
+        const s = d - (q === this.target ? 10 : 0) - (p.lastAttacker === q ? 6 : 0) - GM.botBias(q) + (q.kind !== 'bot' && !provoked ? 7 : 0); if (s < bs) { bs = s; best = q; }
       }
       if (best) { if (best !== this.target) this.react = lerp(0.9, 0.42, this.skill) + rand(0.3) + (best.kind !== 'bot' && (best.liveT || 0) < 7 ? 0.5 : 0); this.target = best; this.seenT = now; this.lastSeen = [best.pos[0], best.pos[1], best.pos[2]]; }
       else if (this.target && now - this.seenT > 0.45) { this.target = null; this.goal = null; }
@@ -1998,7 +2144,7 @@ const Net = {
     const c1 = hexOk(c[0]) ? c[0] : '#ffffff', c2 = hexOk(c[1]) ? c[1] : '#888888';
     if (!pl) { pl = pe.player = new Player('remote', name, c1, c2); pl.net = pe.id; pl.rd.mesh = G.charMesh; G.players.push(pl); G.feed(`${name} 님이 접속했어요`); }
     if (pl.name !== name) pl.name = name; if (pl.hex1 !== c1 || pl.hex2 !== c2) pl.setColors(c1, c2);
-    pl.kills = this.num(pr.k, 0, 999, 0) | 0; pl.assists = this.num(pr.a, 0, 999, 0) | 0; pl.deaths = this.num(pr.d, 0, 999, 0) | 0; GM.applyPresence(pl, pr);
+    pl.kills = this.num(pr.k, 0, 999, 0) | 0; pl.assists = this.num(pr.a, 0, 999, 0) | 0; pl.deaths = this.num(pr.d, 0, 999, 0) | 0; GM.applyPresence(pl, pr); pl.cos = COS.validate(pr.cs);
     const wi = this.num(pr.w, 0, MAX_WID, 0) | 0; if (pl.weapon.id !== wi) pl.weapon = WEAPON_LIST[wi];
     const ph = pr.ph, f = this.num(pr.f, 0, 255, 0) | 0;
     pe.crouch = !!(f & 1); pe.aim = !!(f & 2); pe.ground = !!(f & 4); pe.sprint = !!(f & 8);
@@ -2031,7 +2177,7 @@ const Net = {
     else if (t === 'gr') G.addGrenade(N(2, -60, 60), N(3, -5, 90), N(4, -60, 60), N(5, -40, 40), N(6, -40, 40), N(7, -40, 40), pl, false);
     else if (t === 'dn') {
       const killer = e[2] === this.me ? G.me : (this.peers.get(e[2]) || {}).player || null, as = Array.isArray(e[3]) ? e[3] : [], w = WEAPON_LIST[Math.min(N(4, 0, 9) | 0, MAX_WID)];
-      if (killer === G.me) { G.me.kills++; G.onMyKill(pl, !!e[5]); GM.gunKill(G.me, e[4] === 9 ? 'grenade' : e[4] === 8 ? 'melee' : w.key); } else if (as.includes(this.me)) { G.me.assists++; G.toast('어시스트 +1'); }
+      if (killer === G.me) { G.me.kills++; G.onMyKill(pl, !!e[5]); GM.onKillNet(pl, e[6] === 1); } else if (as.includes(this.me)) { G.me.assists++; G.toast('어시스트 +1'); }
       G.killFeed(killer, pl, e[4] === 9 ? 'grenade' : e[4] === 8 ? 'melee' : w.key, !!e[5]);
     } else if (t === 'pk') { if (this.isHost) G.hostTake(N(2, 0, 1e9) | 0); else G.localRemoveItem(N(2, 0, 1e9) | 0); }
     else if (t === 'rl') { const c = Assets.clips.Reloading; pl.anim.play('Reloading', { mask: 1, rate: c.dur / pl.weapon.reload }); Snd.play('magout', pl.pos, 0.7); }
@@ -2069,7 +2215,7 @@ const Net = {
       o.s = [r2(me.pos[0]), r2(me.pos[1]), r2(me.pos[2]), r2(me.yaw % TAU), r2(me.pitch)]; o.f = (me.crouch ? 1 : 0) | (me.aiming ? 2 : 0) | (me.grounded ? 4 : 0) | (me.sprinting ? 8 : 0);
       o.w = me.weapon.id; o.hp = Math.round(me.hp); o.k = me.kills; o.a = me.assists; o.d = me.deaths;
     } else o.ph = 'L';
-    GM.presence(o, me);
+    GM.presence(o, me); if (me && me.cos) o.cs = me.cos;
     o.h = this.isHost ? G.hostBlock() : null;
     if (!this.mq && this.mqErr && this.mqErr.length) o.nx = this.mqErr.join(',') + ' v10';
     if (this.mq && this.room && this.room.report) o.nx = null;
@@ -2318,12 +2464,18 @@ const UI = {
     $('bHelp').onclick = () => { Snd.init(); Snd.play('ui'); this.openPause('조작법'); }; $('bSet').onclick = () => { Snd.init(); Snd.play('ui'); this.openPause('설정'); };
     $('bBack').onclick = () => { Snd.play('ui'); G.toTitle(); };
     $('bReady').onclick = () => { Snd.init(); G.ready(); };
-    $('bRandom').onclick = () => { Snd.play('ui'); const s = randomSkin(); G.setSkin(s[0], s[1]); this.syncPicker(); };
+    $('bRandom').onclick = () => { Snd.play('ui'); if (this.cosTab) { COS.random().forEach((v, i) => G.setCos(i, v)); this.syncCos(); return; } const s = randomSkin(); G.setSkin(s[0], s[1]); this.syncPicker(); };
     $('bExit').onclick = () => { Snd.play('ui2'); G.exitEnd(); };
     $('bResume').onclick = () => { Snd.play('ui'); this.togglePause(); };
     $('bLeave').onclick = () => { Snd.play('ui'); $('pause').hidden = true; G.toTitle(); };
     const nick = $('nick'); nick.value = G.profile.name; nick.addEventListener('input', () => { G.profile.name = nick.value.trim().slice(0, 12) || '플레이어'; G.saveProfile(); });
     $('segTop').onclick = () => this.setEdit('c1'); $('segBot').onclick = () => this.setEdit('c2');
+    // costume tab: four slots with ‹ › steppers
+    const tab = (cos) => { $('tabColor').setAttribute('aria-selected', String(!cos)); $('tabCos').setAttribute('aria-selected', String(cos)); document.querySelectorAll('#lobbyPanel .tColor').forEach((e) => { e.hidden = cos; }); $('cosBox').hidden = !cos; this.cosTab = cos; Snd.play('ui'); };
+    $('tabColor').onclick = () => tab(false); $('tabCos').onclick = () => tab(true);
+    const box = $('cosBox'); COS_SLOTS.forEach((s, i) => { const r = document.createElement('div'); r.className = 'cosrow'; r.innerHTML = `<span>${s.name}</span><button aria-label="${s.name} 이전">‹</button><b id="cosV${i}"></b><button aria-label="${s.name} 다음">›</button>`; const [a, b] = r.querySelectorAll('button'); const step = (d) => { const n = s.items.length, v = ((G.profile.cos[i] | 0) + d + n) % n; G.setCos(i, v); this.syncCos(); Snd.play('ui'); }; a.onclick = () => step(-1); b.onclick = () => step(1); box.appendChild(r); });
+    { const h = document.createElement('p'); h.className = 'hint'; h.textContent = '상의·하의 무늬는 내 색상을 따라가요. 랜덤은 지금 보고 있는 탭만 바꿔요.'; box.appendChild(h); }
+    this.syncCos();
     // palette: SV square + hue slider + swatches
     const sv = $('sv'); let drag = false;
     const pick = (e) => { const r = sv.getBoundingClientRect(), s = clamp((e.clientX - r.left) / r.width, 0, 1), v = 1 - clamp((e.clientY - r.top) / r.height, 0, 1), h = this.hsvState[this.edit]; h[1] = s; h[2] = v; this.commit(); };
@@ -2376,6 +2528,7 @@ const UI = {
   },
   // ---- palette
   toHSV(hex) { const [r, g, b] = hexToRgb(hex), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0; if (d > 0) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h /= 6; if (h < 0) h += 1; } return [h, mx ? d / mx : 0, mx]; },
+  syncCos() { const c = G.profile.cos || [0, 0, 0, 0]; COS_SLOTS.forEach((s, i) => { const e = $('cosV' + i); if (e) e.textContent = s.items[c[i] | 0]; }); },
   setEdit(k) { this.edit = k; $('segTop').setAttribute('aria-pressed', String(k === 'c1')); $('segBot').setAttribute('aria-pressed', String(k === 'c2')); this.syncPicker(true); Snd.play('ui'); },
   commit() { const h = this.hsvState[this.edit], c = hsv(h[0], h[1], h[2]), hex = rgbToHex(c[0], c[1], c[2]); if (this.edit === 'c1') G.setSkin(hex, G.profile.c2); else G.setSkin(G.profile.c1, hex); this.drawSV(); },
   syncPicker(keep) { if (!keep) { this.hsvState.c1 = this.toHSV(G.profile.c1); this.hsvState.c2 = this.toHSV(G.profile.c2); } $('hue').value = Math.round(this.hsvState[this.edit][0] * 360); this.drawSV(); },
@@ -2397,7 +2550,7 @@ const UI = {
   name(p) { const c = rgbToHex(...hexToRgb(p.hex1)); return `<b style="color:${c}">${esc(p.name)}</b>`; },
   ranked() { const key = (p) => G.mode === 'online' ? String(p.net || Net.me || '') : ('000000' + p.id).slice(-6); return G.players.slice().sort((a, b) => GM.cmp(a, b) || (key(a) < key(b) ? -1 : 1)); },
   board(el, final) {
-    const gid = final ? G.results.gid : GM.id, sl = { gem: '보석', koth: '점수', gun: '단계' }[gid] || '', tdm = gid === 'tdm';
+    const gid = final ? G.results.gid : GM.id, sl = { gem: '보석', koth: '점수', jug: '점수' }[gid] || '', tdm = gid === 'tdm';
     const list = final ? G.results.list : this.ranked().map((p) => ({ p, name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === G.me, bot: p.kind === 'bot', team: GM.teamOf(p), stat: GM.statText(p) }));
     const win = Math.floor(list.length / 2), isWin = (r, i) => final ? r.win : tdm ? false : i < win;
     let head = '';
@@ -2419,12 +2572,12 @@ const UI = {
     if (this.dmgT > 0) { this.dmgT -= dt; $('dmgdir').firstElementChild.style.opacity = clamp(this.dmgT / 0.6, 0, 1); }
     const m = G.match, me = G.me;
     if (G.screen === 'lobby') this.lobbyStatus();
-    if (G.screen === 'drop') set('dropInfo', m.state === 'play' ? `${GM.def().name} · 남은 시간 ${this.clock(m.time)}` + (GM.id === 'tdm' && me && me.team >= 0 ? ` · 나는 ${TEAM_NAME[me.team]} 팀` : '') : '');
+    if (G.screen === 'drop') set('dropInfo', m.state === 'play' ? `${GM.def().name} · ${G.map ? G.map.kindName + ' · ' : ''}남은 시간 ${this.clock(m.time)}` + (GM.id === 'tdm' && me && me.team >= 0 ? ` · 나는 ${TEAM_NAME[me.team]} 팀` : '') : '');
     if ($('hud').hidden) return;
     if (G.screen === 'end') { this.tags(); return; }
     set('tClock', this.clock(m.time)); const hot = m.state === 'play' && m.time <= 30; if (L.hot !== hot) { L.hot = hot; $('timer').classList.toggle('hot', hot); }
     set('tMode', `${GM.def().name} · ` + (G.mode === 'online' ? `온라인 ${Net.count()}명` : '로컬'));
-    if (G.frame % 6 === 0 || L.mbId !== GM.id) { const hb = me && (G.screen === 'play' || G.screen === 'dead' || G.screen === 'drop') ? GM.hud(me) : ''; L.mbId = GM.id; if (L.mb !== hb) { L.mb = hb; const e = $('modebar'); e.innerHTML = hb; e.hidden = !hb; } }
+    if (G.frame % 6 === 0 || L.mbId !== GM.id) { const hb = me && (G.screen === 'play' || G.screen === 'dead') ? GM.hud(me) : ''; L.mbId = GM.id; if (L.mb !== hb) { L.mb = hb; const e = $('modebar'); e.innerHTML = hb; e.hidden = !hb; } }
     if (!me) return;
     if (G.screen === 'play') {
       const w = me.weapon; set('wName', w.name);
@@ -2478,7 +2631,7 @@ const UI = {
     for (const p of this._tagVis) {
       if (p.state !== 'live' && p.state !== 'drop') continue; if (!R.toScreen(v, p.headPos[0], p.headPos[1] + (end ? 0.42 : top ? 2 : 0.32), p.headPos[2])) continue;
       let el = this.tagEls.get(p); if (!el) { el = document.createElement('span'); box.appendChild(el); this.tagEls.set(p, el); } seen.add(p);
-      const tg = !end && GM.id === 'gem' && p.gems > 0 ? `${p.name} ◆${p.gems}` : !end && GM.id === 'gun' ? `${p.name} · ${Math.min(p.lvl | 0, GUN_LAST) + 1}단계` : p.name, bc = !end && GM.teamOf(p) >= 0 ? TEAM_COL[p.team] : p.hex1;
+      const tg = !end && GM.id === 'gem' && p.gems > 0 ? `${p.name} ◆${p.gems}` : !end && GM.isJug(p) ? `☠ 저거넛 ${p.name}` : p.name, bc = !end && GM.teamOf(p) >= 0 ? TEAM_COL[p.team] : p.hex1;
       if (el._n !== tg) { el._n = tg; el.textContent = tg; } if (el._c !== bc) { el._c = bc; el.style.borderColor = bc; el.classList.toggle('ally', !end && !!me && GM.ally(p, me)); }
       el.style.left = v[0].toFixed(1) + 'px'; el.style.top = v[1].toFixed(1) + 'px'; el.style.opacity = top ? 1 : clamp(1.4 - v[2] / 45, 0.35, 1);
     }
@@ -2489,15 +2642,15 @@ const UI = {
 };
 
 // ==== 11b_modes.js ====
-// ---------- game modes: free-for-all, team deathmatch, gem collect, king of the hill, gun game ----------
+// ---------- game modes: free-for-all, team deathmatch, gem collect, king of the hill, juggernaut ----------
 const MODES = [
   { id: 'ffa', name: '개인전', tag: '데스매치', desc: '모두가 적. 킬을 가장 많이 한 사람이 이겨요.' },
   { id: 'tdm', name: '팀 데스매치', tag: '레드 vs 블루', desc: '팀원과 함께 상대 팀을 처치. 팀 킬 합계 40을 먼저 채우거나, 끝날 때 앞선 팀이 이겨요.' },
   { id: 'gem', name: '젬 컬렉트', tag: '보석 쟁탈', desc: '중앙에 계속 생기는 보석을 모으세요. 죽으면 가진 보석을 전부 떨어뜨려요. 끝날 때 가장 많이 가진 사람이 이겨요.' },
   { id: 'koth', name: '점령전', tag: '킹 오브 더 힐', desc: '빛나는 구역 안에 혼자 서 있으면 1초에 1점. 다른 사람이 들어오면 경합이라 점수가 멈춰요. 구역은 45초마다 옮겨가요.' },
-  { id: 'gun', name: '무기 진화전', tag: '건 게임', desc: '처치할 때마다 다음 무기로 바뀌어요. 마지막 황금 권총으로 처치하면 즉시 우승. 근접으로 처치하면 상대를 한 단계 강등시켜요.' },
+  { id: 'jug', name: '저거넛', tag: '괴물 사냥', desc: '한 명이 받는 피해 절반 이하·무한 미니건의 저거넛이 돼요. 저거넛을 쓰러뜨린 사람이 다음 저거넛. 저거넛은 버틸수록(4초 1점)·처치할수록(2점), 나머지는 저거넛을 잡으면(5점) 점수가 커요. 일반 처치 1점.' },
 ];
-const GUN_LADDER = ['pistol', 'smg', 'shotgun', 'rifle', 'sniper', 'minigun', 'rpg', 'golden'], GUN_LAST = GUN_LADDER.length - 1;
+const JUG_FIRST = 15, JUG_TAKE = 0.45;
 const TEAM_COL = ['#ff4d5e', '#3d8bff'], TEAM_NAME = ['레드', '블루'], TDM_LIMIT = 40, HILL_R = 5.5, HILL_MOVE = 45, GEM_MAX_CENTER = 14, GEM_MAX = 70;
 const TEAM_LIN = TEAM_COL.map((h) => toLin(hexToRgb(h)));
 
@@ -2511,11 +2664,11 @@ const GM = {
   ally(a, b) { return this.id === 'tdm' && a && b && a !== b && a.team >= 0 && a.team === b.team; },
   teamOf(p) { return this.id === 'tdm' && p && p.team >= 0 ? p.team : -1; },
   teamScore(t) { let s = 0; for (const p of G.players) if (p.team === t) s += p.kills; return s; },
-  resetPlayer(p) { p.gems = 0; p.pts = 0; p.lvl = 0; if (G.mode !== 'online' || p.kind !== 'remote') p.team = -1; },
+  resetPlayer(p) { p.gems = 0; p.pts = 0; p._jug = false; if (G.mode !== 'online' || p.kind !== 'remote') p.team = -1; },
 
   // ---------- round setup (every client; mode-specific world state)
   onRoundStart() {
-    const m = G.match; m.gems = []; m.gemT = 3; m.nextGem = 1; m.gtaken = new Set(); m.hill = null; m.hillT = 0;
+    const m = G.match; m.gems = []; m.gemT = 3; m.nextGem = 1; m.gtaken = new Set(); m.hill = null; m.hillT = 0; m.jug = ''; m.jugT = JUG_FIRST; m.jugGone = 0;
     for (const p of G.players) this.resetPlayer(p);
     this.center = G.map ? this.openGround(0, 0) : [0, 0, 0];
     if (this.id === 'koth' && (G.mode === 'local' || Net.isHost)) this.moveHill();
@@ -2556,8 +2709,16 @@ const GM = {
   votes() { const c = new Array(MODES.length).fill(0); c[this.idx(this.pick)]++; for (const [, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) c[Net.num(pe.pres.gv, 0, MODES.length - 1, 0) | 0]++; return c; },
 
   // ---------- spawning
-  spawnWeapon(p) { if (this.id !== 'gun') return; p.lvl = clamp(p.lvl | 0, 0, GUN_LAST); p.setWeapon(GUN_LADDER[p.lvl]); p.reserve = Infinity; },
-  noGuns() { return this.id === 'gun'; },
+  spawnWeapon(p) { if (this.isJug(p)) this.arm(p); },
+  noGuns() { return false; },
+  // ---------- juggernaut
+  keyOf(p) { if (!p) return ''; if (G.mode === 'online') return p === G.me ? Net.me : p.net || ''; return 'L' + p.id; },
+  jugP() { const k = G.match.jug; if (this.id !== 'jug' || !k) return null; for (const p of G.players) if (this.keyOf(p) === k) return p; return null; },
+  isJug(p) { return this.id === 'jug' && !!p && !!G.match.jug && this.keyOf(p) === G.match.jug; },
+  arm(p) { if (p.weapon.key !== 'minigun') { p.setWeapon('minigun'); p.swapAnim(); } p.reserve = Infinity; },
+  setJug(key, why) { const m = G.match; if (m.jug === key) return; m.jug = key; m.jugGone = 0; m.hn++; if (!key) m.jugT = 4; if (G.mode === 'online') Net.push(true); },
+  pickJug() { const live = G.players.filter((p) => p.state === 'live' && (p.kind !== 'remote' || p.net)); if (live.length) this.setJug(this.keyOf(live[Math.floor(Math.random() * live.length)])); },
+  jugPoints(att, victimWasJug) { if (!att) return; att.pts = (att.pts || 0) + (victimWasJug ? 5 : this.isJug(att) ? 2 : 1); if (att === G.me && victimWasJug) UI.toast('저거넛 처치! +5', '#ff5a3c'); },
 
   // ---------- authority (local game or online host): spawns, hill moves, early finish
   authority(dt) {
@@ -2565,7 +2726,11 @@ const GM = {
     if (this.id === 'gem') { m.gemT -= dt; if (m.gemT <= 0) { m.gemT = 4.5; let c = 0; for (const g of m.gems) if (g.c) c++; if (c < GEM_MAX_CENTER && m.gems.length < GEM_MAX) this.addGem(this.center[0] + rand(-2.2, 2.2), this.center[2] + rand(-2.2, 2.2), true); } }
     if (this.id === 'koth') { m.hillT -= dt; if (m.hillT <= 0 || !m.hill) this.moveHill(); }
     if (this.id === 'tdm' && (this.teamScore(0) >= TDM_LIMIT || this.teamScore(1) >= TDM_LIMIT)) return true;
-    if (this.id === 'gun' && G.players.some((p) => p.lvl > GUN_LAST)) return true;
+    if (this.id === 'jug') {
+      const j = this.jugP();
+      if (!m.jug) { m.jugT -= dt; if (m.jugT <= 0) this.pickJug(); }
+      else if (!j || j.state !== 'live') { m.jugGone += dt; if (m.jugGone > (j ? 4 : 2)) { m.jug = ''; this.pickJug(); } } else m.jugGone = 0;
+    }
     return false;
   },
   moveHill() {
@@ -2601,10 +2766,19 @@ const GM = {
         for (const p of G.players) { if (p.kind === 'remote' || p.state !== 'live') continue; if (Math.hypot(g.x - p.pos[0], g.z - p.pos[2]) < 1.25 && Math.abs(g.y - p.pos[1]) < 1.8) { this.takeGem(g, p); if (p === me) UI.toast(`보석 ${me.gems}개`, '#8fe3ff'); break; } }
       }
     }
+    if (id === 'jug') { this.jugUpkeep(dt); if (G.mode === 'online' && !Net.isHost && !m.jug) m.jugT = Math.max(0, m.jugT - dt); }
     if (id === 'koth' && m.hill) {
       if (G.mode === 'online' && !Net.isHost) m.hillT = Math.max(0, m.hillT - dt);
       const inside = this.inHill(); this.hillState = inside;
       if (inside.length === 1 && inside[0].kind !== 'remote') inside[0].pts = (inside[0].pts || 0) + dt;
+    }
+  },
+  jugUpkeep(dt) {
+    for (const p of G.players) {
+      if (p.kind === 'remote') continue; const j = this.isJug(p);
+      if (j && !p._jug && p.state === 'live') { p._jug = true; p.hp = 100; this.arm(p); if (p === G.me) { UI.banner('저거넛이 되었어요!', 2.4); Snd.play('grenadeget', null, 1); } else UI.feed(`<b style="color:#ff5a3c">저거넛</b><i>${esc(p.name)}</i>`); }
+      if (!j && p._jug) p._jug = false;
+      if (j && p.state === 'live') { this.arm(p); p.pts = (p.pts || 0) + dt / 4; }
     }
   },
   inHill() { const h = G.match.hill, out = []; if (!h) return out; for (const p of G.players) if (p.state === 'live' && Math.hypot(p.pos[0] - h[0], p.pos[2] - h[2]) < HILL_R && Math.abs(p.pos[1] - h[1]) < 3.2) out.push(p); return out; },
@@ -2619,17 +2793,14 @@ const GM = {
       else { const r = (x) => Math.round(x * 10) / 10; Net.event('dg', n, r(v.pos[0]), r(v.pos[1]), r(v.pos[2])); FX.pickup(v.pos[0], v.pos[1] + 1, v.pos[2], [0.6, 0.85, 1]); }
       if (v === G.me) UI.toast(`보석 ${n}개를 떨어뜨렸어요`, '#8fe3ff');
     }
-    if (id === 'gun' && wkey === 'melee' && att && att !== v) { v.lvl = Math.max(0, (v.lvl | 0) - 1); if (v === G.me) UI.toast('근접 처치를 당해 한 단계 강등', '#ff8a8a'); }
-    if (id === 'gun' && att && att !== v && att.kind !== 'remote') this.gunKill(att, wkey);
+    if (id === 'jug') {
+      const wasJug = this.isJug(v);
+      if (att && att.kind !== 'remote') this.jugPoints(att, wasJug);
+      if (wasJug && (G.mode === 'local' || Net.isHost)) { if (att && att.state === 'live') this.setJug(this.keyOf(att)); else this.setJug(''); }
+    }
   },
-  // the killer is local (me or a bot): climb the ladder
-  gunKill(p, wkey) {
-    if (this.id !== 'gun' || G.match.state !== 'play' || wkey === 'grenade' || wkey === 'melee') return;
-    if (wkey !== p.weapon.key) return;
-    if ((p.lvl | 0) >= GUN_LAST) { p.lvl = GUN_LAST + 1; UI.banner(`${p.name} 님이 황금 권총으로 우승!`, 3); if (G.mode === 'local') G.match.time = Math.min(G.match.time, 0.01); else Net.push(true); return; }
-    p.lvl = (p.lvl | 0) + 1; p.setWeapon(GUN_LADDER[p.lvl]); p.reserve = Infinity; p.reloadT = 0; p.fireCd = Math.min(p.fireCd, 0.2); p.swapAnim();
-    if (p === G.me) { const w = WEAPONS[GUN_LADDER[p.lvl]]; UI.toast(p.lvl === GUN_LAST ? '마지막! 황금 권총' : `다음 무기 · ${w.name}`, rgbToHex(...w.col)); }
-  },
+  // online: I killed someone (their client told everyone)
+  onKillNet(victim, wasJug) { if (this.id === 'jug') this.jugPoints(G.me, wasJug || this.isJug(victim) || this._jugVictim === victim); this._jugVictim = null; },
 
   // ---------- online plumbing
   hostBlock(h) {
@@ -2637,6 +2808,7 @@ const GM = {
     if (this.id === 'tdm' && m.teams) h.tm = [...m.teams];
     if (this.id === 'gem') h.gs = m.gems.slice(0, GEM_MAX).map((g) => [g.id, r(g.x), r(g.y), r(g.z), g.c ? 1 : 0]);
     if (this.id === 'koth' && m.hill) h.kh = [r(m.hill[0]), r(m.hill[1]), r(m.hill[2]), r(m.hillT)];
+    if (this.id === 'jug') { h.jg = m.jug || ''; h.jt = r(m.jugT); }
   },
   onHostState(h) {
     const m = G.match;
@@ -2646,21 +2818,23 @@ const GM = {
       m.gems = out;
     }
     if (this.id === 'koth' && Array.isArray(h.kh)) { const nh = [Net.num(h.kh[0], -ARENA, ARENA, 0), Net.num(h.kh[1], -3, 40, 0), Net.num(h.kh[2], -ARENA, ARENA, 0)], moved = m.hill && Math.hypot(nh[0] - m.hill[0], nh[2] - m.hill[2]) > 1; m.hill = nh; m.hillT = Net.num(h.kh[3], 0, HILL_MOVE, 0); if (moved) this.hillMoved(); }
+    if (this.id === 'jug') { m.jug = typeof h.jg === 'string' ? h.jg.slice(0, 40) : ''; m.jugT = Net.num(h.jt, 0, 60, 0); }
     this.applyTeams();
   },
   handle(pe, pl, e) {
     const t = e[1], m = G.match, N = (i, a, b) => Net.num(e[i], a, b, 0);
+    if (t === 'dn' && Net.isHost && this.id === 'jug' && this.isJug(pl)) { this._jugVictim = pl; const k = typeof e[2] === 'string' ? e[2] : '', kp = k === Net.me ? G.me : (Net.peers.get(k) || {}).player; this.setJug(kp && kp.state === 'live' ? k : ''); }
     if (t === 'pg') { const id = N(2, 0, 1e9) | 0, i = m.gems.findIndex((g) => g.id === id); if (i >= 0) { m.gems.splice(i, 1); m.hn++; } if (!Net.isHost) m.gtaken.add(id); return true; }
     if (t === 'dg') { if (Net.isHost && this.id === 'gem') this.scatterGems(N(2, 0, 40), N(3, -ARENA, ARENA), N(4, -3, 40), N(5, -ARENA, ARENA)); else FX.pickup(N(3, -ARENA, ARENA), N(4, -3, 40) + 1, N(5, -ARENA, ARENA), [0.6, 0.85, 1]); return true; }
     return false;
   },
-  presence(o, me) { o.gv = this.idx(this.pick); if (me) { o.t = me.team; o.gc = me.gems | 0; o.pt = Math.floor(me.pts || 0); o.lv = me.lvl | 0; } },
-  applyPresence(pl, pr) { pl.gems = Net.num(pr.gc, 0, 999, 0) | 0; pl.pts = Net.num(pr.pt, 0, 9999, 0) | 0; pl.lvl = Net.num(pr.lv, 0, GUN_LAST + 1, 0) | 0; },
+  presence(o, me) { o.gv = this.idx(this.pick); if (me) { o.t = me.team; o.gc = me.gems | 0; o.pt = Math.floor(me.pts || 0); } },
+  applyPresence(pl, pr) { pl.gems = Net.num(pr.gc, 0, 999, 0) | 0; pl.pts = Net.num(pr.pt, 0, 9999, 0) | 0; },
 
   // ---------- ranking + labels
-  score(p) { const id = this.id; return id === 'gem' ? p.gems | 0 : id === 'koth' ? Math.floor(p.pts || 0) : id === 'gun' ? (p.lvl | 0) : p.kills; },
-  statLabel() { return { gem: '보석', koth: '점수', gun: '단계' }[this.id] || ''; },
-  statText(p) { const id = this.id; if (id === 'gun') return p.lvl > GUN_LAST ? '우승' : `${(p.lvl | 0) + 1}/${GUN_LADDER.length}`; return String(this.score(p)); },
+  score(p) { const id = this.id; return id === 'gem' ? p.gems | 0 : id === 'koth' || id === 'jug' ? Math.floor(p.pts || 0) : p.kills; },
+  statLabel() { return { gem: '보석', koth: '점수', jug: '점수' }[this.id] || ''; },
+  statText(p) { return String(this.score(p)); },
   cmp(a, b) { return this.score(b) - this.score(a) || b.kills - a.kills || b.assists - a.assists || a.deaths - b.deaths; },
   winTeam() { const a = this.teamScore(0), b = this.teamScore(1); return a > b ? 0 : b > a ? 1 : -1; },
 
@@ -2673,7 +2847,7 @@ const GM = {
       const s = this.hillState || [], st = !m.hill ? '' : s.length === 0 ? '비어 있음' : s.length > 1 ? '<b class="warn">경합 중</b>' : s[0] === me ? '<b class="ok">점령 중 +1/초</b>' : `${esc(s[0].name)} 점령 중`;
       return `<span class="pt">${me ? Math.floor(me.pts || 0) : 0}점</span><small>${st} · 이동 ${UI.clock(m.hillT || 0)}${lead((p) => Math.floor(p.pts || 0) + '점')}</small>`;
     }
-    if (id === 'gun') { const l = me ? clamp(me.lvl | 0, 0, GUN_LAST) : 0, nx = l < GUN_LAST ? WEAPONS[GUN_LADDER[l + 1]].name : '우승'; return `<span class="pt">${l + 1}/${GUN_LADDER.length}</span><small>${WEAPONS[GUN_LADDER[l]].name} → ${nx}${lead((p) => ((p.lvl | 0) + 1) + '단계')}</small>`; }
+    if (id === 'jug') { const j = this.jugP(), st = !m.jug ? `저거넛 등장까지 ${Math.ceil(m.jugT || 0)}초` : j === me ? '<b class="warn">내가 저거넛! 버티세요</b>' : j ? `저거넛: <b>${esc(j.name)}</b> · 잡으면 +5` : '저거넛 교체 중'; return `<span class="pt">${me ? Math.floor(me.pts || 0) : 0}점</span><small>${st}${lead((p) => Math.floor(p.pts || 0) + '점')}</small>`; }
     return '';
   },
 
@@ -2696,14 +2870,17 @@ const GM = {
       FX.frameQuads.push({ beam: true, ax: h[0], ay: h[1], az: h[2], bx: h[0], by: h[1] + 26 * (top ? 2 : 1), bz: h[2], w: 0.6 * k, c: col, a: 0.35 });
       FX.light(h[0], h[1] + 1.5, h[2], 9, [col[0] * 0.5, col[1] * 0.5, col[2] * 0.5], 0.03);
     }
+    if (id === 'jug') { const j = this.jugP(); if (j && j.state === 'live') { const x = j.pos[0], y = j.visY, z = j.pos[2]; if (!(j === G.me && G.fpv)) FX.frameQuads.push({ x: j.headPos[0], y: j.headPos[1] + 0.2, z: j.headPos[2], s: 2.4 * k, c: [4, 0.9, 0.3], a: 0.5, kind: 0 }); FX.frameQuads.push({ flat: true, x, y: y + 0.06, z, s: 1.4 * k, c: [4, 0.8, 0.3], a: 0.9, kind: 3 }, { beam: true, ax: x, ay: y + 2.2, az: z, bx: x, by: y + 30, bz: z, w: 0.3 * k, c: [4, 0.8, 0.3], a: 0.25 }); FX.light(x, y + 1.4, z, 6, [2, 0.4, 0.1], 0.03); } }
     if (id === 'tdm') for (const p of G.players) if ((p.state === 'live' || p.state === 'drop') && p.team >= 0 && !(p === G.me && G.fpv)) { const c = TEAM_LIN[p.team]; FX.frameQuads.push({ flat: true, x: p.pos[0], y: p.visY + 0.06, z: p.pos[2], s: 0.75 * k, c: [c[0] * 2.2, c[1] * 2.2, c[2] * 2.2], a: 0.9, kind: 3 }); }
   },
   minimap(x, P, me) {
     const m = G.match, id = this.id, S = 264 / (ARENA * 2);
     if (id === 'koth' && m.hill) { x.beginPath(); x.arc(P(m.hill[0]), P(m.hill[2]), HILL_R * S, 0, TAU); x.fillStyle = 'rgba(255,225,77,0.28)'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#ffe14d'; x.stroke(); }
     if (id === 'gem') { for (const g of m.gems) { x.fillStyle = '#8fe3ff'; x.fillRect(P(g.x) - 2.5, P(g.z) - 2.5, 5, 5); } }
+    if (id === 'jug') { const j = this.jugP(); if (j && j !== me && j.state === 'live') { x.fillStyle = '#ff5a3c'; x.beginPath(); x.arc(P(j.pos[0]), P(j.pos[2]), 7, 0, TAU); x.fill(); x.lineWidth = 2; x.strokeStyle = '#fff'; x.stroke(); } }
     if (id === 'tdm' && me) for (const p of G.players) if (p !== me && p.state === 'live' && this.ally(p, me)) { x.fillStyle = TEAM_COL[p.team]; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#fff'; x.stroke(); }
   },
+  botBias(q) { return this.isJug(q) ? 14 : 0; },
   // objective a fighting bot keeps drifting toward ([x, z] or null)
   botPull(p) {
     const m = G.match, id = this.id;
@@ -2720,25 +2897,97 @@ const GM = {
   },
 };
 
+// ==== 11c_costume.js ====
+// ---------- costumes: face / neck pieces are small meshes riding on bones; tops / bottoms are painted on by the char shader ----------
+const COS_SLOTS = [
+  { id: 'face', name: '얼굴', items: ['없음', '하키 마스크', '일루미나티', '선글라스', '방독면', '스마일 가면', '닌자 복면'] },
+  { id: 'neck', name: '목', items: ['없음', '스카프', '망토', '금목걸이', '넥타이'] },
+  { id: 'top', name: '상의', items: ['기본', '줄무늬 티', '체크 셔츠', '정장', '군복', '후드티', '갑옷'] },
+  { id: 'bot', name: '하의', items: ['기본', '청바지', '군복 바지', '정장 바지', '운동복', '반바지'] },
+];
+const COS = {
+  parts: {}, // item key -> [{ mesh, bone, tint: 'c1'|'c2'|null, emis, sway }]
+  validate(a) { const o = [0, 0, 0, 0]; if (Array.isArray(a)) for (let i = 0; i < 4; i++) o[i] = clamp((a[i] | 0), 0, COS_SLOTS[i].items.length - 1); return o; },
+  random() { return COS_SLOTS.map((s, i) => Math.random() < (i < 2 ? 0.55 : 0.7) ? 1 + Math.floor(Math.random() * (s.items.length - 1)) : 0); },
+  // which body region each bone paints: 0 thigh, 1 shin, 2 torso, 3 upper arm, 4 forearm, 5 hand, 6 head/neck, 7 foot
+  regions() {
+    const m = new Float32Array(NBONES);
+    Assets.bones.forEach((b, i) => { const n = b.name.replace('mixamorig:', ''); m[i] = /Hand/.test(n) ? 5 : /ForeArm/.test(n) ? 4 : /Arm$/.test(n) ? 3 : /Shoulder|Spine/.test(n) ? 2 : /Neck|Head/.test(n) ? 6 : /UpLeg/.test(n) ? 0 : /Foot|Toe/.test(n) ? 7 : /Leg/.test(n) ? 1 : /Hips/.test(n) ? 0 : 2; });
+    return m;
+  },
+  build() {
+    R.regMask = this.regions(); R._armSent = false;
+    const bi = Assets.bi, M = (list) => R.mesh(boxMeshData(list), [[0, 3], [1, 3], [2, 3]]), W = [1, 1, 1], K = [0.02, 0.02, 0.025], Gd = [0.95, 0.68, 0.16];
+    const tri = (pts, col) => { // flat polygon fan (both faces), for the illuminati triangle
+      const v = []; const push = (a, b, c, nz) => { for (const q of [a, b, c]) v.push(q[0], q[1], q[2], 0, 0, nz, col[0], col[1], col[2]); };
+      for (let i = 1; i + 1 < pts.length; i++) { push(pts[0], pts[i], pts[i + 1], 1); push(pts[0], pts[i + 1], pts[i], -1); } return v;
+    };
+    const P = this.parts, H = bi.Head, Nk = bi.Neck, S2 = bi.Spine2, Hp = bi.Hips;
+    // head-bone space: +Y up the skull (0 = top of neck, ~0.19 = crown), +Z out of the face, face surface at z ≈ 0.1
+    P.face1 = [{ bone: H, mesh: M([[-0.085, 0.0, 0.085, 0.085, 0.175, 0.115, [0.92, 0.9, 0.84]], [-0.07, 0.17, 0.06, 0.07, 0.2, 0.1, [0.92, 0.9, 0.84]], [-0.065, 0.085, 0.112, -0.02, 0.11, 0.118, K], [0.02, 0.085, 0.112, 0.065, 0.11, 0.118, K], [-0.012, 0.03, 0.112, 0.012, 0.06, 0.118, [0.6, 0.08, 0.08]], [-0.05, 0.135, 0.112, -0.04, 0.145, 0.118, [0.6, 0.08, 0.08]], [0.04, 0.135, 0.112, 0.05, 0.145, 0.118, [0.6, 0.08, 0.08]]]) }];
+    { const g = new Float32Array(tri([[-0.12, -0.0, 0.122], [0.12, -0.0, 0.122], [0, 0.22, 0.122]], [0.95, 0.72, 0.18]).concat(tri([[-0.05, 0.075, 0.124], [0, 0.105, 0.124], [0.05, 0.075, 0.124], [0, 0.045, 0.124]], [0.98, 0.97, 0.9])).concat(tri([[-0.016, 0.075, 0.126], [0, 0.09, 0.126], [0.016, 0.075, 0.126], [0, 0.06, 0.126]], [0.05, 0.03, 0.02])));
+      P.face2 = [{ bone: H, mesh: R.mesh(g, [[0, 3], [1, 3], [2, 3]]), emis: 0.9 }]; }
+    P.face3 = [{ bone: H, mesh: M([[-0.09, 0.095, 0.095, -0.01, 0.135, 0.112, [0.03, 0.03, 0.04]], [0.01, 0.095, 0.095, 0.09, 0.135, 0.112, [0.03, 0.03, 0.04]], [-0.012, 0.118, 0.1, 0.012, 0.13, 0.108, K], [-0.095, 0.12, -0.02, -0.088, 0.13, 0.1, K], [0.088, 0.12, -0.02, 0.095, 0.13, 0.1, K]]) }];
+    P.face4 = [{ bone: H, mesh: M([[-0.08, 0.0, 0.07, 0.08, 0.15, 0.115, [0.07, 0.08, 0.07]], [-0.07, 0.09, 0.112, -0.015, 0.14, 0.12, [0.25, 0.45, 0.4]], [0.015, 0.09, 0.112, 0.07, 0.14, 0.12, [0.25, 0.45, 0.4]], [-0.03, 0.0, 0.11, 0.03, 0.06, 0.18, [0.12, 0.13, 0.12]], [-0.04, -0.015, 0.17, 0.04, 0.075, 0.21, [0.3, 0.32, 0.28]], [-0.1, 0.11, -0.08, 0.1, 0.125, 0.08, [0.05, 0.05, 0.05]]]) }];
+    { const o = [], Y = [1, 0.85, 0.12]; for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU, r = 0.09; o.push([Math.cos(a) * r - 0.04, Math.sin(a) * r + 0.09 - 0.04, 0.105, Math.cos(a) * r + 0.04, Math.sin(a) * r + 0.09 + 0.04, 0.125, Y]); }
+      o.push([-0.07, 0.03, 0.11, 0.07, 0.15, 0.128, Y], [-0.045, 0.105, 0.128, -0.025, 0.14, 0.132, K], [0.025, 0.105, 0.128, 0.045, 0.14, 0.132, K], [-0.05, 0.05, 0.128, 0.05, 0.062, 0.132, K], [-0.06, 0.062, 0.128, -0.045, 0.08, 0.132, K], [0.045, 0.062, 0.128, 0.06, 0.08, 0.132, K]);
+      P.face5 = [{ bone: H, mesh: M(o) }]; }
+    { const Kn = [0.035, 0.035, 0.045]; P.face6 = [{ bone: H, mesh: M([[-0.088, -0.005, -0.06, 0.088, 0.088, 0.108, Kn], [-0.09, 0.088, -0.07, 0.09, 0.098, 0.104, Kn], [-0.092, 0.142, -0.085, 0.092, 0.2, 0.1, Kn]]) }, { bone: H, mesh: M([[-0.094, 0.15, -0.09, 0.094, 0.17, 0.104, W], [-0.025, 0.12, -0.16, 0.02, 0.165, -0.085, W], [0.0, 0.08, -0.2, 0.04, 0.13, -0.15, W]]), tint: 'c1' }]; }
+    // neck: scarf ring + tail (tinted), cape (two panels: chest-attached top, hip-attached skirt that swings), gold chain, tie
+    P.neck1 = [{ bone: Nk, mesh: M([[-0.085, 0.0, -0.075, 0.085, 0.075, 0.085, W], [-0.07, -0.25, -0.1, -0.01, 0.02, -0.075, W], [0.02, -0.08, 0.075, 0.07, 0.03, 0.1, W]]), tint: 'c1' }];
+    P.neck2 = [{ bone: S2, mesh: M([[-0.13, 0.13, -0.115, 0.13, 0.2, -0.1, W], [-0.17, -0.1, -0.128, 0.17, 0.14, -0.11, W]]), tint: 'c1' },
+      { bone: Nk, mesh: M([[-0.09, -0.02, -0.08, 0.09, 0.05, 0.07, W]]), tint: 'c1' },
+      { bone: Hp, mesh: M([[-0.19, -0.12, -0.018, 0.19, 0.3, 0.0, W], [-0.22, -0.62, -0.018, 0.22, -0.11, 0.0, W]]), tint: 'c1', sway: [0, 0.02, -0.14] }];
+    { const o = []; for (let i = 0; i < 10; i++) { const a = -0.25 + (i / 9) * 0.5, x = Math.sin(a * 3.2) * 0.075, y = -0.03 - Math.cos(a * 3.2) * 0.04 + 0.04, z = 0.08 + Math.cos(a * 3.2) * 0.03 - 0.02; o.push([x - 0.012, y - 0.012, z - 0.006, x + 0.012, y + 0.012, z + 0.012, Gd]); }
+      o.push([-0.025, -0.1, 0.1, 0.025, -0.045, 0.118, Gd]); P.neck3 = [{ bone: Nk, mesh: M(o), emis: 0.35 }]; }
+    P.neck4 = [{ bone: S2, mesh: M([[-0.02, 0.1, 0.1, 0.02, 0.15, 0.13, W], [-0.028, -0.12, 0.105, 0.028, 0.105, 0.125, W], [-0.018, -0.15, 0.105, 0.018, -0.12, 0.125, W]]), tint: 'c1' },
+      { bone: Nk, mesh: M([[-0.07, -0.01, 0.06, 0.07, 0.03, 0.095, [0.9, 0.9, 0.92]]]) }];
+    // armour pauldrons ride the upper arms
+    P.top6 = [{ bone: bi.LeftArm, mesh: M([[-0.07, -0.04, -0.07, 0.07, 0.07, 0.07, [0.5, 0.52, 0.58]], [-0.075, 0.05, -0.075, 0.075, 0.065, 0.075, [0.75, 0.77, 0.82]]]) }, { bone: bi.RightArm, mesh: M([[-0.07, -0.04, -0.07, 0.07, 0.07, 0.07, [0.5, 0.52, 0.58]], [-0.075, 0.05, -0.075, 0.075, 0.065, 0.075, [0.75, 0.77, 0.82]]]) }];
+    P.top5 = [{ bone: S2, mesh: M([[-0.13, 0.12, -0.17, 0.13, 0.26, -0.08, W]]), tint: 'c1' }]; // hood folded on the back
+  },
+  // push this player's costume pieces into the scene
+  draw(p, sc) {
+    const cs = p.cos; if (!cs || p.rd.hidden || (p.rd.alpha !== undefined && p.rd.alpha < 0.5)) return;
+    p.rd.cos = cs; const fpvMe = p === G.me && G.fpv;
+    const pools = p._cp || (p._cp = []); let n = 0;
+    for (const key of ['face' + cs[0], 'neck' + cs[1], 'top' + cs[2]]) {
+      const list = this.parts[key]; if (!list || (fpvMe && key[0] !== 't')) continue;
+      for (const part of list) {
+        const e = pools[n] || (pools[n] = { mesh: null, model: M4.create(), tint: [1, 1, 1], emis: 0, t: M4.create(), r: M4.create(), noShadow: false }); n++;
+        const o = part.bone * 16, w = p.anim.world;
+        if (part.sway) { // cape skirt: hinge at the hips, swings back with speed
+          const sp = Math.min(1, Math.hypot(p.vel[0], p.vel[2]) / 7), a = -(0.08 + sp * 0.55 + Math.sin(G.now * 7 + p.id) * 0.04 * (0.3 + sp));
+          M4.rotX(e.r, a); e.r[12] = part.sway[0]; e.r[13] = part.sway[1]; e.r[14] = part.sway[2];
+          for (let i = 0; i < 16; i++) e.t[i] = w[o + i]; const tt = M4.mul(this._tmp || (this._tmp = M4.create()), e.t, e.r); M4.mul(e.model, p.model, tt);
+        } else { for (let i = 0; i < 16; i++) e.t[i] = w[o + i]; M4.mul(e.model, p.model, e.t); }
+        e.mesh = part.mesh; e.emis = part.emis || 0.05;
+        const c = part.tint === 'c1' ? p.c1 : part.tint === 'c2' ? p.c2 : null; if (c) { e.tint[0] = c[0] * 1.6 + 0.04; e.tint[1] = c[1] * 1.6 + 0.04; e.tint[2] = c[2] * 1.6 + 0.04; } else e.tint[0] = e.tint[1] = e.tint[2] = 1;
+        sc.props.push(e);
+      }
+    }
+  },
+};
+
 // ==== 12_game.js ====
 // ---------- game flow, match rules, camera, main loop ----------
 const ROUND_TIME = 300;
 const G = {
   screen: 'boot', mode: null, now: 0, frame: 0, players: [], bots: [], me: null, map: null, mapMesh: null, charMesh: null, stage: null, display: [],
   match: { gm: 'ffa', gems: [], gtaken: new Set(), hill: null, hillT: 0, teams: null, state: 'idle', time: ROUND_TIME, items: [], grenades: [], rockets: [], rid: 0, seed: 0, endT: 0, wT: 9, gT: 6, nextItem: 1, hn: 0, lastSec: -1, taken: new Set() },
-  profile: { name: '플레이어', c1: '#ff5aa8', c2: '#3d6bff' }, settings: { sens: 1, zsens: 1, tsens: 100, swapFire: true, v2: true, v3: true, view: DEFAULT_VIEW, xcol: 1, vol: 80, mus: 55, sfx: 90, quality: 2 },
+  profile: { name: '플레이어', c1: '#ff5aa8', c2: '#3d6bff', cos: [0, 0, 0, 0] }, settings: { sens: 1, zsens: 1, tsens: 100, swapFire: true, v2: true, v3: true, view: DEFAULT_VIEW, xcol: 1, vol: 80, mus: 55, sfx: 90, quality: 2 },
   cam: { eye: [0, 2, 6], target: [0, 1, 0], up: [0, 1, 0], fov: 0.9, near: 0.12, far: 700 }, eyeBase: [0, 0, 0], eyeOK: false, fpv: false, shotMinT: 0, vmOK: false, vmMuzzle: [0, 0, 0], zoomNow: 1, hipFov: 1.2, scoped: false, vmKick: 0, swayX: 0, swayY: 0, bobT: 0, prevYaw: 0, prevPitch: 0, camKick: 0, camDist: 3, camH: 1.62, nearItem: null, results: null, dropHover: null, deadT: 0, killer: null, pulseR: 0, barrierT: 0, slowT: 0, autoQ: true, ft: 16, ftN: 0,
   view: M4.create(), sc: { cam: null, chars: [], props: [], lights: [], parts: null, mapMesh: null, shadowFocus: [0, 0, 0], shadowRadius: 40 },
 
   boot() {
     try {
-      const p = store.get('gdm.profile', null); if (p && typeof p === 'object') { if (typeof p.name === 'string') this.profile.name = p.name.slice(0, 12) || '플레이어'; if (/^#[0-9a-f]{6}$/i.test(p.c1)) this.profile.c1 = p.c1; if (/^#[0-9a-f]{6}$/i.test(p.c2)) this.profile.c2 = p.c2; }
+      const p = store.get('gdm.profile', null); if (p && typeof p === 'object') { this.profile.cos = COS.validate(p.cos); if (typeof p.name === 'string') this.profile.name = p.name.slice(0, 12) || '플레이어'; if (/^#[0-9a-f]{6}$/i.test(p.c1)) this.profile.c1 = p.c1; if (/^#[0-9a-f]{6}$/i.test(p.c2)) this.profile.c2 = p.c2; }
       else { const s = randomSkin(); this.profile.c1 = s[0]; this.profile.c2 = s[1]; }
       const touchDev = matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches; this.settings.quality = touchDev ? 1 : 2;
       const st = store.get('gdm.settings', null); if (st && typeof st === 'object') { for (const k of ['sens', 'zsens', 'tsens', 'xcol', 'vol', 'mus', 'sfx', 'quality']) if (typeof st[k] === 'number' && isFinite(st[k])) this.settings[k] = st[k]; this.settings.swapFire = st.v2 ? st.swapFire !== false : true; this.settings.view = st.view === 'tps' || st.view === 'fps' ? st.view : DEFAULT_VIEW; if (!(this.settings.sens > 0 && this.settings.sens <= 10)) this.settings.sens = 1; if (!st.v3 && Math.abs(this.settings.sens - 0.4) < 1e-6) this.settings.sens = 1; this.settings.xcol = clamp(this.settings.xcol | 0, 0, 6); this.autoQ = false; }
       this.settings.quality = clamp(this.settings.quality | 0, 0, 2);
       GM.load(); this.setQ(); R.init($('gl')); loadAssets();
-      const m = Assets.mesh; this.charMesh = R.charMesh(m.pos, m.nrm, m.ski, m.skw, m.idx); buildGunMeshes(); computeGunOffset(); R.armMask = new Float32Array(NBONES); Assets.bones.forEach((b, i) => { if (/(Arm|Hand)/.test(b.name)) R.armMask[i] = 1; });
+      const m = Assets.mesh; this.charMesh = R.charMesh(m.pos, m.nrm, m.ski, m.skw, m.idx); buildGunMeshes(); computeGunOffset(); COS.build(); R.armMask = new Float32Array(NBONES); Assets.bones.forEach((b, i) => { if (/(Arm|Hand)/.test(b.name)) R.armMask[i] = 1; });
       this.sc.cam = this.cam; this.applyAudio(); UI.init(); Input.init();
       this.newStage(); this.toTitle(); $('loading').hidden = true;
       let last = performance.now(); const loop = (t) => { const dt = Math.min(0.05, Math.max(0.001, (t - last) / 1000)); this.perf(t - last); last = t; try { this.tick(dt); } catch (e) { console.error(e); if (!this._err) { this._err = 1; } } requestAnimationFrame(loop); };
@@ -2769,12 +3018,13 @@ const G = {
   },
   toTitle() {
     Net.leave(); Input.unlock(); this.mode = null; this.players = []; this.bots = []; this.me = null; this.match.state = 'idle'; this.match.items = []; this.match.grenades = []; this.match.rockets = []; FX.reset(); UI.clearTags();
-    this.screen = 'title'; this.display = [this.mkDisplay(this.profile.name, this.profile.c1, this.profile.c2, 0, 0.6, 0, 0.35, 'Rifle_Idle', true)];
+    this.screen = 'title'; this.display = [this.mkDisplay(this.profile.name, this.profile.c1, this.profile.c2, 0, 0.6, 0, 0.35, 'Rifle_Idle', true)]; this.display[0].cos = this.profile.cos.slice(); this.display[0].mine = true;
     UI.show('scrTitle'); Snd.intensity = 0.25; Snd.wind(0);
   },
+  setCos(slot, v) { const c = this.profile.cos = COS.validate(this.profile.cos); c[slot] = v; this.profile.cos = COS.validate(c); store.set('gdm.profile', this.profile); if (this.me) this.me.cos = this.profile.cos.slice(); for (const d of this.display) if (d.mine) d.cos = this.profile.cos.slice(); if (this.mode === 'online') Net.push(true); },
   setSkin(c1, c2) { this.profile.c1 = c1; this.profile.c2 = c2; store.set('gdm.profile', this.profile); if (this.me) this.me.setColors(c1, c2); if (this.display[0] && this.screen !== 'end') this.display[0].setColors(c1, c2); },
   chooseMode(mode) {
-    this.mode = mode; this.me = new Player('human', this.profile.name, this.profile.c1, this.profile.c2); this.me.fps = true; this.me.rd.mesh = this.charMesh; this.players = [this.me]; this.bots = [];
+    this.mode = mode; this.me = new Player('human', this.profile.name, this.profile.c1, this.profile.c2); this.me.fps = true; this.me.rd.mesh = this.charMesh; this.me.cos = this.profile.cos.slice(); this.players = [this.me]; this.bots = [];
     const m = this.match; m.state = 'idle'; m.rid = 0; m.items = []; m.grenades = []; m.rockets = []; m.time = ROUND_TIME;
     this.toLobby();
     if (mode === 'online') this.connectOnline();
@@ -2795,7 +3045,7 @@ const G = {
     if (Net.status === 'lost' && (WEB_BUILD || Net.mq)) this.autoReconnect(1);
   },
   toLobby() {
-    this.screen = 'lobby'; const d = this.mkDisplay(this.profile.name, this.profile.c1, this.profile.c2, 0, 0.6, -1.0, 0, 'Rifle_Idle', false); this.display = [d];
+    this.screen = 'lobby'; const d = this.mkDisplay(this.profile.name, this.profile.c1, this.profile.c2, 0, 0.6, -1.0, 0, 'Rifle_Idle', false); this.display = [d]; d.cos = this.profile.cos.slice(); d.mine = true;
     d.anim.play('Entry', { mask: 0, fadeIn: 0, fadeOut: 0.5 }); d.entry = true; UI.show('scrLobby'); UI.syncPicker(); $('nick').value = this.profile.name; Snd.intensity = 0.25; Snd.wind(0); UI.clearTags();
   },
   ready() {
@@ -2813,7 +3063,7 @@ const G = {
     const m = this.match, seed = (Math.random() * 4294967295) >>> 0; m.gm = GM.pick; this.loadMap(seed); this.resetRound(); m.seed = seed; m.state = 'play'; m.rid++;
     this.me.kills = this.me.assists = this.me.deaths = 0; this.me.state = 'out'; this.players = [this.me]; this.bots = [];
     const names = BOT_NAMES.slice().sort(() => Math.random() - 0.5);
-    for (let i = 0; i < 9; i++) { const s = randomSkin(), p = new Player('bot', names[i], s[0], s[1]); p.rd.mesh = this.charMesh; this.players.push(p); const b = new Bot(p); p.bot = b; this.bots.push(b); }
+    for (let i = 0; i < 9; i++) { const s = randomSkin(), p = new Player('bot', names[i], s[0], s[1]); p.rd.mesh = this.charMesh; p.cos = COS.random(); this.players.push(p); const b = new Bot(p); p.bot = b; this.bots.push(b); }
     GM.onRoundStart(); GM.setupLocal();
     if (!GM.noGuns()) for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade');
   },
@@ -2830,7 +3080,7 @@ const G = {
   dropAt(p) {
     const me = this.me; me.yaw = Math.atan2(-p[0], -p[2]); me.pitch = -0.55; me.spawnDrop(p[0], p[2]); me.hide = false;
     this.screen = 'play'; UI.show(null); Input.resetPlay(); Input.lock(); this.camDist = 7; this.camKick = 0; Snd.intensity = 0.8; UI.last = {}; Net.push(true);
-    if (this._bannerRid !== this.match.rid) { this._bannerRid = this.match.rid; const d = GM.def(); UI.banner(d.name, 2.2); UI.feed(`<b>${d.name}</b><i>${esc(d.desc)}</i>`); if (GM.id === 'tdm' && me.team >= 0) UI.toast(`나는 ${TEAM_NAME[me.team]} 팀`, TEAM_COL[me.team]); }
+    if (this._bannerRid !== this.match.rid) { this._bannerRid = this.match.rid; const d = GM.def(); UI.banner(d.name, 2.2); UI.feed(`<b>${d.name}</b><i>${esc(d.desc)}</i>`); UI.feed(`<b>맵</b><i>${this.map.kindName}</i>`); if (GM.id === 'tdm' && me.team >= 0) UI.toast(`나는 ${TEAM_NAME[me.team]} 팀`, TEAM_COL[me.team]); }
   },
   // ---------- rules
   randWeapon() { const have = this.match.items.map((i) => i.kind), powerOut = have.some((k) => POWER.includes(k)) || this.players.some((p) => p.state === 'live' && p.weapon.power);
@@ -2927,9 +3177,10 @@ const G = {
   onDeath(v, att, head, wkey) {
     const as = []; for (const k in v.damagers) { const e = v.damagers[k]; if (e.p !== att && e.p !== v && this.now - e.t < 10 && e.d >= 15) as.push(e.p); }
     if (att === v) att = null;
+    const wasJug = GM.isJug(v);
     GM.onDeath(v, att, wkey);
     if (this.mode === 'local') { if (att) att.kills++; for (const p of as) p.assists++; if (att === this.me) this.onMyKill(v, head); else if (as.includes(this.me)) UI.toast('어시스트 +1'); }
-    else if (v === this.me) Net.event('dn', att && att.net ? att.net : '', as.map((p) => p.net).filter(Boolean), wkey === 'grenade' ? 9 : wkey === 'melee' ? 8 : (WEAPONS[wkey] || WEAPONS.pistol).id, head ? 1 : 0);
+    else if (v === this.me) Net.event('dn', att && att.net ? att.net : '', as.map((p) => p.net).filter(Boolean), wkey === 'grenade' ? 9 : wkey === 'melee' ? 8 : (WEAPONS[wkey] || WEAPONS.pistol).id, head ? 1 : 0, wasJug ? 1 : 0);
     this.killFeed(att, v, wkey, head);
     if (v === this.me) { this.screen = 'dead'; this.deadT = 0; this.killer = att; UI.show(null); Input.fire = Input.aim = Input.fireTouch = false; UI.banner(att ? `${att.name}에게 당했어요` : '사망', 2.2); R.post.damage = 1; Snd.intensity = 0.5; Net.push(true); }
   },
@@ -3003,7 +3254,7 @@ const G = {
   endRound() {
     if (this.screen === 'end' || this.screen === 'title' || this.screen === 'lobby') return;
     const gid = GM.id, wt = gid === 'tdm' ? GM.winTeam() : -1, ts = [GM.teamScore(0), GM.teamScore(1)];
-    const list = UI.ranked().map((p) => ({ name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === this.me, bot: p.kind === 'bot', team: GM.teamOf(p), stat: GM.statText(p), gwin: gid === 'gun' && p.lvl > GUN_LAST }));
+    const list = UI.ranked().map((p) => ({ name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === this.me, bot: p.kind === 'bot', team: GM.teamOf(p), stat: GM.statText(p), cos: p.cos }));
     const rank = list.findIndex((r) => r.me) + 1, meRow = list[rank - 1];
     let win = Math.floor(list.length / 2), won = rank > 0 && rank <= win;
     if (gid === 'tdm') { for (const r of list) r.win = r.team === wt; won = !!(meRow && meRow.team === wt && wt >= 0); win = -1; }
@@ -3015,7 +3266,7 @@ const G = {
     this.screen = 'end'; this.display = [];
     const show = list.slice(0, 10); if (rank > 10) show[9] = list[rank - 1];
     const W = show.filter((r) => r.win), Lo = show.filter((r) => !W.includes(r));
-    const row = (arr, z, y, vic) => arr.forEach((r, i) => { const x = (i - (arr.length - 1) / 2) * Math.min(1.5, 8 / Math.max(arr.length, 1)) + (vic ? 0 : 0.35); const d = this.mkDisplay(r.name, r.c1, r.c2, x, y, z, 0, vic ? 'Victory' : 'Defeat', false); d.anim.idleT = rand(0.6); this.display.push(d); });
+    const row = (arr, z, y, vic) => arr.forEach((r, i) => { const x = (i - (arr.length - 1) / 2) * Math.min(1.5, 8 / Math.max(arr.length, 1)) + (vic ? 0 : 0.35); const d = this.mkDisplay(r.name, r.c1, r.c2, x, y, z, 0, vic ? 'Victory' : 'Defeat', false); d.cos = r.cos; d.anim.idleT = rand(0.6); this.display.push(d); });
     row(W, 1.5, 0.6, true); row(Lo, -1.7, 1.3, false);
     $('endEyebrow').textContent = `${GM.def(gid).name} · ${this.mode === 'online' ? '온라인' : '로컬'} · 라운드 종료`;
     const t = $('endTitle'); if (list.length < 2) { t.textContent = '판 종료'; t.className = ''; $('endSub').textContent = '다른 접속자가 없어 판이 끝났어요.'; }
@@ -3025,7 +3276,7 @@ const G = {
       if (gid === 'tdm') sub = `${TEAM_NAME[0]} ${ts[0]} : ${ts[1]} ${TEAM_NAME[1]} · ` + (r.draw ? '동점' : `${TEAM_NAME[wt]} 팀 승리`) + (me.team >= 0 ? ` · 나는 ${TEAM_NAME[me.team]} 팀, ${me.k}킬` : '');
       else if (gid === 'gem') sub = `${list.length}명 중 ${rank}위 · 보석 ${me.stat}개 · 1위 ${list[0].name} 보석 ${list[0].stat}개`;
       else if (gid === 'koth') sub = `${list.length}명 중 ${rank}위 · 점령 ${me.stat}점 · 1위 ${list[0].name} ${list[0].stat}점`;
-      else if (gid === 'gun') sub = (list[0].gwin ? `${list[0].name} 님이 황금 권총으로 우승 · ` : '') + `나는 ${rank}위 · ` + (me.stat === '우승' ? '우승' : `${me.stat}단계`);
+      else if (gid === 'jug') sub = `${list.length}명 중 ${rank}위 · ${me.stat}점 · 1위 ${list[0].name} ${list[0].stat}점`;
       $('endSub').textContent = sub;
     }
     UI.board($('endBoard'), true); UI.show('scrEnd'); Snd.intensity = 0.35; Snd.play(won ? 'win' : 'lose', null, 0.9); $('pause').hidden = true; Net.push(true);
@@ -3048,7 +3299,7 @@ const G = {
     const o = Assets.bi.RightHand * 16; for (let i = 0; i < 16; i++) V.hand[i] = V.world[o + i];
     M4.mul(T, V.hand, GunOffset); M4.mul(V.gun, M, T); M4.point(this.vmMuzzle, V.gun, 0, 0.05, w.muz + 0.06); this.vmOK = true;
     const ch = V.ch || (V.ch = { mesh: this.charMesh, model: M, skin: V.skin, c1: me.c1, c2: me.c2, flash: 0, alpha: 1, glow: 0, armsOnly: 1 });
-    ch.c1 = me.c1; ch.c2 = me.c2; ch.flash = me.flash * 0.5;
+    ch.c1 = me.c1; ch.c2 = me.c2; ch.flash = me.flash * 0.5; ch.cos = me.cos;
     const pr = V.pr || (V.pr = { mesh: null, model: V.gun, tint: [1, 1, 1], emis: 0.06 }); pr.mesh = GunMeshes[w.key];
     return { fov: this.hipFov, chars: [ch], props: me.throwT > 0 ? [] : [pr] };
   },
@@ -3123,13 +3374,13 @@ const G = {
     sc.vm = null;
     if (stage) {
       sc.mapMesh = this.stage.mesh; sc.shadowFocus[0] = 0; sc.shadowFocus[1] = 0; sc.shadowFocus[2] = 0; sc.shadowRadius = 16; R.env.fogDen = 0.00035;
-      for (const d of this.display) { sc.chars.push(d.rd); if (d.showGun) sc.props.push(d.gun); }
+      for (const d of this.display) { sc.chars.push(d.rd); COS.draw(d, sc); if (d.showGun) sc.props.push(d.gun); }
     } else {
       sc.mapMesh = this.mapMesh; const top = this.screen === 'drop'; R.env.fogDen = top ? 0.000004 : 0.00006;
       if (top) { sc.shadowFocus[0] = 0; sc.shadowFocus[1] = 0; sc.shadowFocus[2] = 0; sc.shadowRadius = ARENA * 1.5; } else { const d = 16; sc.shadowFocus[0] = cam.eye[0] + (cam.target[0] - cam.eye[0]) * d; sc.shadowFocus[1] = Math.min(cam.eye[1], 6); sc.shadowFocus[2] = cam.eye[2] + (cam.target[2] - cam.eye[2]) * d; sc.shadowRadius = 46; }
       for (const p of this.players) {
         if (p === this.me && this.eyeOK && this.fpv && (p.state === 'live' || p.state === 'drop')) { p.rd.noShadow = false; p.rd.hidden = true; sc.chars.push(p.rd); continue; }
-        if (p.state === 'out' || p.rd.hidden) continue; sc.chars.push(p.rd); if (p.gunVisible()) sc.props.push(p.gun);
+        if (p.state === 'out' || p.rd.hidden) continue; sc.chars.push(p.rd); COS.draw(p, sc); if (p.gunVisible()) sc.props.push(p.gun);
       }
       sc.vm = this.eyeOK && this.fpv && !this.scoped && (this.me.state === 'live' || this.me.state === 'drop') ? this.viewModel() : null;
       const T = this._m1 || (this._m1 = M4.create()), S = this._m2 || (this._m2 = M4.create());

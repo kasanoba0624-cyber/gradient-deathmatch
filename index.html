@@ -161,6 +161,22 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
 #loading{background:var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:26px;z-index:40}
 @media (max-height:460px){ #mini{width:96px;height:96px} #timer b{font-size:20px} #lobbyPanel{padding:12px;gap:8px} #sv{height:84px} .mode{padding:10px 14px} .mode strong{font-size:20px} #hpnum{font-size:22px} #feed{font-size:11.5px} #feed div:nth-last-child(n+4){display:none} #endTitle{font-size:34px} }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+#gdg{left:50%;bottom:14px;transform:translateX(-50%);padding:7px 14px;border-radius:12px;font-family:var(--ui);text-align:center;--gc:#9fe;max-width:min(92vw,560px);transition:bottom .25s}
+#gdg .gh{display:flex;gap:10px;align-items:center;justify-content:center;font-size:14px} #gdg .gh b{color:var(--gc)}
+#gdgKeys{display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:center;font-size:12.5px;margin-top:4px;color:var(--fg)}
+#gdg kbd{font-family:var(--num);background:#fff;color:#111;border-radius:5px;padding:0 6px;margin-right:5px;font-weight:700}
+#gdg.big{bottom:84px;padding:12px 18px;border:1px solid var(--gc);box-shadow:0 0 24px rgba(0,0,0,.45)}
+#gdg.big .gh{font-size:17px} #gdg.big #gdgKeys{flex-direction:column;align-items:flex-start;gap:6px;font-size:14px;margin-top:8px;text-align:left}
+#gdg.big #gdgKeys b{margin-right:6px} #gdg .d{color:var(--muted)} #gdg .tip{color:var(--gc);font-weight:700}
+#gdg.big kbd{min-width:16px;display:inline-block;text-align:center}
+#gdgRes .dots i{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.22);margin:0 2px;vertical-align:middle} #gdgRes .dots i.on{background:var(--gc);box-shadow:0 0 6px var(--gc)}
+#gdgRes .bar{display:inline-block;width:78px;height:7px;border-radius:4px;background:rgba(255,255,255,.18);overflow:hidden;vertical-align:middle} #gdgRes .bar i{display:block;height:100%;background:var(--gc)}
+#gdgRes .st{font-size:12px;color:var(--muted)} #gdgRes .st.on{color:var(--gc)}
+.touch #gdg{bottom:100px} .touch #gdg.big{bottom:124px;max-width:min(60vw,460px)} .touch #gdg.big #gdgKeys{font-size:12.5px}
+.tg{width:calc(52px*var(--s));height:calc(52px*var(--s));border-color:#9fe8ff;color:#d8f6ff;font-size:max(10px,calc(11.5px*var(--s)));line-height:1.05;background:rgba(20,40,52,.55)}
+.tg small{font-size:9.5px;opacity:.65}
+#tgI{right:calc(var(--gr) + 40px*var(--s));bottom:calc(352px*var(--s))} #tgK{right:calc(var(--gr) + 40px*var(--s));bottom:calc(256px*var(--s))}
+#tgJ{right:calc(var(--gr) + 88px*var(--s));bottom:calc(304px*var(--s))} #tgL{right:calc(var(--gr) - 8px*var(--s));bottom:calc(304px*var(--s))}
 </style>
 </head>
 <body>
@@ -180,6 +196,7 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
     <div id="vital"><div id="kad"></div><div id="hpnum">100</div><div id="hpbar"><i></i></div></div>
     <div id="ammo"><div class="w" id="wName">피스톨</div><div class="n" id="wAmmo">12<small> / ∞</small></div><div id="nades"><i></i><i></i><i></i></div></div>
     <div id="prompt" class="panel" hidden></div>
+    <div id="gdg" class="panel" hidden><div class="gh"><b id="gdgName"></b><span id="gdgRes"></span></div><div id="gdgKeys"></div></div>
     <div id="toast"></div>
     <div id="banner"></div>
     <div id="score" hidden><div class="board panel" id="boardBox"></div></div>
@@ -196,6 +213,10 @@ td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-rig
     <button class="tb" id="tCrouch" aria-label="앉기">앉기</button>
     <button class="tb" id="tMelee" aria-label="근접 공격">근접</button>
     <button class="tb" id="tSwap" aria-label="총 교체" hidden>교체</button>
+    <button class="tb tg" id="tgI" aria-label="보조 I" hidden>I</button>
+    <button class="tb tg" id="tgJ" aria-label="보조 J" hidden>J</button>
+    <button class="tb tg" id="tgK" aria-label="보조 K" hidden>K</button>
+    <button class="tb tg" id="tgL" aria-label="보조 L" hidden>L</button>
     <button class="tb" id="tPause" aria-label="일시정지">Ⅱ</button>
     <button class="tb" id="tScore" aria-label="순위표">순위</button>
     <button class="tb" id="tView" aria-label="1인칭 3인칭 전환">시점</button>
@@ -413,19 +434,19 @@ vec3 applyFog(vec3 c, vec3 wp){
 const SHADERS = {
   mapV: `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aN; layout(location=2) in vec2 aUV; layout(location=3) in vec2 aSize; layout(location=4) in float aShade;
-uniform mat4 uVP;
-out vec3 vWP; out vec3 vN; out vec2 vUV; out vec2 vSize; out float vShade;
-void main(){ vWP = aPos; vN = aN; vUV = aUV; vSize = aSize; vShade = aShade; gl_Position = uVP * vec4(aPos, 1.0); }`,
+uniform mat4 uVP; uniform vec3 uOff;
+out vec3 vWP; out vec3 vLP; out vec3 vN; out vec2 vUV; out vec2 vSize; out float vShade;
+void main(){ vLP = aPos; vWP = aPos + uOff; vN = aN; vUV = aUV; vSize = aSize; vShade = aShade; gl_Position = uVP * vec4(vWP, 1.0); }`,
   mapF: `#version 300 es
 precision highp float;
-in vec3 vWP; in vec3 vN; in vec2 vUV; in vec2 vSize; in float vShade;
-uniform vec3 uBase; uniform float uTime; uniform vec4 uPulse;
+in vec3 vWP; in vec3 vLP; in vec3 vN; in vec2 vUV; in vec2 vSize; in float vShade;
+uniform vec3 uBase; uniform float uTime; uniform vec4 uPulse; uniform float uMov;
 ${GLSL_LIT}
 out vec4 o;
 void main(){
   vec3 n = normalize(vN);
   vec3 alb = uBase * vShade;
-  vec2 guv = abs(n.y) > 0.5 ? vWP.xz : (abs(n.x) > 0.5 ? vWP.zy : vWP.xy);
+  vec2 guv = abs(n.y) > 0.5 ? vLP.xz : (abs(n.x) > 0.5 ? vLP.zy : vLP.xy);
   float dist = length(vWP - uCamPos);
   vec2 g1 = abs(fract(guv - 0.5) - 0.5) / max(fwidth(guv), vec2(1e-4));
   float l1 = 1.0 - min(min(g1.x, g1.y), 1.0);
@@ -439,6 +460,9 @@ void main(){
   float ao = mix(1.0, mix(0.62, 1.0, smoothstep(0.0, 1.8, vUV.y)), side);
   vec3 c = lighting(vWP, n, alb) * ao;
   c += (uBase * 0.55 + 0.06) * edge * (0.55 + 0.45 * n.y);
+  // moving blocks: warm hazard edges + a slow stripe so they read as 'this moves'
+  float stripe = step(0.5, fract((vLP.x + vLP.y + vLP.z) * 0.9 - uTime * 0.6));
+  c += uMov * (vec3(1.0, 0.62, 0.15) * edge * 1.4 + vec3(0.18, 0.1, 0.02) * stripe * side);
   // shockwave pulse ring on the floor (landing / explosion)
   float pr = length(vWP.xz - uPulse.xy);
   float ring = exp(-pow((pr - uPulse.z) * 1.4, 2.0)) * uPulse.w;
@@ -801,6 +825,7 @@ const R = {
     let P = this.progs.depth; gl.useProgram(P.p); gl.uniformMatrix4fv(P.u('uVP'), false, this.lightVP);
     if (sc.mapMesh) { gl.uniformMatrix4fv(P.u('uModel'), false, this.identity); gl.bindVertexArray(sc.mapMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, sc.mapMesh.count); this.drawCalls++; }
     for (const p of sc.props) { if (p.noShadow) continue; gl.uniformMatrix4fv(P.u('uModel'), false, p.model); gl.bindVertexArray(p.mesh.vao); gl.drawArrays(gl.TRIANGLES, 0, p.mesh.count); this.drawCalls++; }
+    if (sc.movers) for (const m of sc.movers) { gl.uniformMatrix4fv(P.u('uModel'), false, m.model); gl.bindVertexArray(m.mesh.vao); gl.drawArrays(gl.TRIANGLES, 0, m.mesh.count); this.drawCalls++; }
     P = this.progs.depthChar; gl.useProgram(P.p); gl.uniformMatrix4fv(P.u('uVP'), false, this.lightVP);
     for (const c of sc.chars) { if (c.noShadow) continue; gl.uniformMatrix4fv(P.u('uModel'), false, c.model); gl.uniformMatrix4fv(P.u('uBones[0]'), false, c.skin); gl.bindVertexArray(c.mesh.vao); gl.drawElements(gl.TRIANGLES, c.mesh.count, gl.UNSIGNED_SHORT, 0); this.drawCalls++; }
     gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -819,7 +844,9 @@ const R = {
     // map
     if (sc.mapMesh) {
       P = this.progs.map; gl.useProgram(P.p); this.setLit(P); gl.uniform3fv(P.u('uBase'), e.base); gl.uniform1f(P.u('uTime'), this.time); gl.uniform4fv(P.u('uPulse'), this.pulse);
+      gl.uniform3f(P.u('uOff'), 0, 0, 0); gl.uniform1f(P.u('uMov'), 0);
       gl.bindVertexArray(sc.mapMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, sc.mapMesh.count); this.drawCalls++;
+      if (sc.movers && sc.movers.length) { gl.uniform1f(P.u('uMov'), 1); for (const m of sc.movers) { gl.uniform3fv(P.u('uOff'), m.off); gl.bindVertexArray(m.mesh.vao); gl.drawArrays(gl.TRIANGLES, 0, m.mesh.count); this.drawCalls++; } gl.uniform3f(P.u('uOff'), 0, 0, 0); gl.uniform1f(P.u('uMov'), 0); }
     }
     // props
     P = this.progs.prop; gl.useProgram(P.p); this.setLit(P);
@@ -1073,13 +1100,26 @@ const MAP_KINDS = [ // each round picks one: different layouts, not just a diffe
   { id: 'bunker', name: '벙커', sat: 0.55, fog: 1.2 },
 ];
 
+const GIMMICKS = {
+  plaza: { name: '솟는 엄폐벽', desc: '바닥에서 엄폐벽이 솟았다 가라앉아요' },
+  city: { name: '엘리베이터', desc: '건물 옆 승강기를 타면 옥상까지 올라가요' },
+  canyon: { name: '상승 기류', desc: '바람 기둥에 들어가면 고원 위로 떠올라요' },
+  yard: { name: '이동 컨테이너', desc: '가운데 통로를 컨테이너가 오가요 · 밀리지 않게 조심' },
+  temple: { name: '솟는 돌기둥', desc: '돌기둥이 오르내려요 · 올라타서 높은 곳을 차지하세요' },
+  maze: { name: '움직이는 울타리', desc: '울타리 문이 저절로 열렸다 닫혀요' },
+  towers: { name: '탑 사이 발사대', desc: '발사대를 밟으면 다른 탑 꼭대기로 날아가요' },
+  arena: { name: '회전 발판', desc: '경기장을 도는 발판에 올라타세요' },
+  forest: { name: '점프 버섯', desc: '버섯을 밟으면 나무 위로 튀어 올라요' },
+  bunker: { name: '자동문', desc: '방 사이 문이 저절로 열리고 닫혀요' },
+};
+
 class GameMap {
   constructor(seed) {
-    this.seed = seed >>> 0; this.cols = []; this.deco = [];
+    this.seed = seed >>> 0; this.cols = []; this.deco = []; this.movers = []; this.pads = []; this.vents = [];
     const rng = this.rng = mulberry32(this.seed * 2654435761 >>> 0);
     this.hue = THEMES[Math.floor(rng() * THEMES.length)] + (rng() - 0.5) * 0.03;
     this.sunAz = rng() * TAU; this.sunEl = 0.62 + rng() * 0.35;
-    this.gen(rng); this.buildNav(); this.weather = Weather.pick(rng);
+    this.gen(rng); const g = GIMMICKS[this.kind]; if (this['gim_' + this.kind]) this['gim_' + this.kind](rng); this.gimName = g ? g.name : ''; this.gimDesc = g ? g.desc : ''; this.updateMovers(0); this.buildNav(); this.weather = Weather.pick(rng);
   }
   box(x0, y0, z0, x1, y1, z1, shade) { const c = { x0: Math.min(x0, x1), y0, z0: Math.min(z0, z1), x1: Math.max(x0, x1), y1, z1: Math.max(z0, z1), ramp: -1, shade: shade || 1 }; this.cols.push(c); return c; }
   gen(rng) {
@@ -1225,7 +1265,7 @@ class GameMap {
   }
   // 4) container yard: long rows of stacked containers with aisles, ramps onto the stacks, a gantry crane over the middle
   gen_yard(rng) {
-    const { R, RI, place, B, Rp } = this.kit(rng), rot = RI(0, 1), H = 2.6, W = 1.25;
+    const { R, RI, place, B, Rp } = this.kit(rng), rot = RI(0, 1), H = 2.6, W = 1.25; this._rot = rot;
     const ct = (x, z, len, lv, sh) => B(x - len / 2, lv * H, z - W, x + len / 2, (lv + 1) * H, z + W, sh || R(0.85, 1.12));
     const all = [];
     // centre crane: two legs and an overhead beam, an open work area underneath
@@ -1260,11 +1300,12 @@ class GameMap {
   }
   // 6) hedge maze: low walls on a grid with gaps, an open courtyard in the middle
   gen_maze(rng) {
-    const { CELL, N, R, place, B, cellC } = this.kit(rng), H = () => R(1.9, 2.7), o = [];
+    const { CELL, N, R, place, B, cellC } = this.kit(rng), H = () => R(1.9, 2.7), o = []; this._gaps = [];
     const wall = (x0, z0, x1, z1) => { // a wall with one gap somewhere along it
       const h = H(), horiz = Math.abs(x1 - x0) > Math.abs(z1 - z0), L = horiz ? x1 - x0 : z1 - z0, g0 = R(1.5, L - 3.8), g1 = g0 + R(2, 2.8);
       if (horiz) { o.push(B(x0, 0, z0 - 0.3, x0 + g0, h, z0 + 0.3, 0.9)); o.push(B(x0 + g1, 0, z0 - 0.3, x1, h, z0 + 0.3, 0.9)); }
       else { o.push(B(x0 - 0.3, 0, z0, x0 + 0.3, h, z0 + g0, 0.9)); o.push(B(x0 - 0.3, 0, z0 + g1, x0 + 0.3, h, z1, 0.9)); }
+      this._gaps.push({ horiz, x0, z0, g0, g1, L, h, t: 0.24 });
     };
     const court = (i, j) => (i === 5 || i === 6) && (j === 5 || j === 6);
     for (let j = 0; j < N / 2; j++) for (let i = 0; i < N; i++) {
@@ -1289,7 +1330,7 @@ class GameMap {
       // ramps up the side of each upper tier, lying on the tier below
       for (let t = 1; t < tiers; t++) { const s = 5.4 - t * 1.5, y0 = t * th; o.pop && 0; o.push(Rp(s, y0, -1.3, s + Math.min(th * 2.1, 1.45), y0 + th, 1.3, 1)); }
       const top = tiers * th, ts = 5.4 - (tiers - 1) * 1.5; o.push(B(-ts, top, -ts, ts, top + 1, -ts + 0.4), B(-ts, top, ts - 0.4, ts, top + 1, ts));
-      place(o.filter((c) => !(c.ramp === 0 && c.y0 > 0)), x, z, RI(0, 3)); placed++;
+      place(o.filter((c) => !(c.ramp === 0 && c.y0 > 0)), x, z, RI(0, 3)); placed++; (this._tops || (this._tops = [])).push([x, z, top, ts]);
     }
     for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) { if (!free(x, z, 1) || rng() > 0.5) continue; mark(x, z, 1); const o = []; for (let k = RI(1, 2); k > 0; k--) { const bx = R(-2.5, 2.5), bz = R(-2.5, 2.5), l = R(1, 2.6); o.push(rng() < 0.5 ? B(bx - l, 0, bz - 0.3, bx + l, 1.15, bz + 0.3) : B(bx - 0.8, 0, bz - 0.8, bx + 0.8, R(1, 1.6), bz + 0.8)); } place(o, cellC(x), cellC(z), RI(0, 3)); }
   }
@@ -1321,8 +1362,8 @@ class GameMap {
   }
   // 10) bunker: a grid of concrete rooms with doorways, an open yard in the middle
   gen_bunker(rng) {
-    const { CELL, N, R, place, B, cellC } = this.kit(rng), o = [], WH = 3.2;
-    const wall = (x0, z0, horiz) => { const L = CELL, g0 = R(2, L - 4.4), g1 = g0 + 2.4; if (horiz) { o.push(B(x0, 0, z0 - 0.35, x0 + g0, WH, z0 + 0.35, 0.86)); o.push(B(x0 + g1, 0, z0 - 0.35, x0 + L, WH, z0 + 0.35, 0.86)); } else { o.push(B(x0 - 0.35, 0, z0, x0 + 0.35, WH, z0 + g0, 0.86)); o.push(B(x0 - 0.35, 0, z0 + g1, x0 + 0.35, WH, z0 + L, 0.86)); } };
+    const { CELL, N, R, place, B, cellC } = this.kit(rng), o = [], WH = 3.2; this._gaps = [];
+    const wall = (x0, z0, horiz) => { const L = CELL, g0 = R(2, L - 4.4), g1 = g0 + 2.4; if (horiz) { o.push(B(x0, 0, z0 - 0.35, x0 + g0, WH, z0 + 0.35, 0.86)); o.push(B(x0 + g1, 0, z0 - 0.35, x0 + L, WH, z0 + 0.35, 0.86)); } else { o.push(B(x0 - 0.35, 0, z0, x0 + 0.35, WH, z0 + g0, 0.86)); o.push(B(x0 - 0.35, 0, z0 + g1, x0 + 0.35, WH, z0 + L, 0.86)); } this._gaps.push({ horiz, x0, z0, g0, g1, L, h: WH, t: 0.28 }); };
     const yard = (i, j) => (i >= 4 && i <= 7 && j >= 4 && j <= 7) || ((i * 7 + j * 3) % 11 === 0);
     for (let j = 0; j < N / 2; j++) for (let i = 0; i < N; i++) {
       const x0 = cellC(i) - CELL / 2, z0 = cellC(j) - CELL / 2;
@@ -1333,13 +1374,129 @@ class GameMap {
     }
     place(o, 0, 0, 0);
   }
+  // ---------- gimmicks: moving blocks driven by the shared round clock (identical on every client), jump pads, updraft vents
+  // mover: base box + displacement d reached at s=1; s ping-pongs 0→1→0 over `per` s, resting `hold` (fraction) at each end.
+  // every mover is mirrored through the centre like the layout. orbit: circles the base box around the origin, radius d[0]
+  mover(x0, y0, z0, x1, y1, z1, d, per, ph, hold, orbit) {
+    const mk = (sg, phase) => {
+      const c = this.box(sg * x0, y0, sg * z0, sg * x1, y1, sg * z1, 1.04); c.over = true;
+      c.mv = { b: { x0: c.x0, y0: c.y0, z0: c.z0, x1: c.x1, y1: c.y1, z1: c.z1 }, d: orbit ? d.slice() : [d[0] * sg, d[1], d[2] * sg], per, ph: phase, hold: hold || 0, orbit: !!orbit, dx: 0, dy: 0, dz: 0, ox: 0, oy: 0, oz: 0 };
+      this.movers.push(c); return c;
+    };
+    mk(1, ph); mk(-1, orbit ? ph + 0.5 : ph);
+  }
+  updateMovers(t) {
+    for (const c of this.movers) {
+      const m = c.mv; let dx, dy, dz;
+      if (m.orbit) { const a = TAU * (t / m.per + m.ph); dx = Math.cos(a) * m.d[0]; dy = 0; dz = Math.sin(a) * m.d[0]; }
+      else { const u = ((t / m.per + m.ph) % 1 + 1) % 1, tri = u < 0.5 ? u * 2 : 2 - u * 2, k = smooth(clamp((tri - m.hold) / (1 - 2 * m.hold), 0, 1)); dx = m.d[0] * k; dy = m.d[1] * k; dz = m.d[2] * k; }
+      m.dx = dx - m.ox; m.dy = dy - m.oy; m.dz = dz - m.oz; if (Math.abs(m.dx) + Math.abs(m.dy) + Math.abs(m.dz) > 1.5) m.dx = m.dy = m.dz = 0; // clock jump: don't fling riders
+      m.ox = dx; m.oy = dy; m.oz = dz; const b = m.b;
+      c.x0 = b.x0 + dx; c.x1 = b.x1 + dx; c.y0 = b.y0 + dy; c.y1 = b.y1 + dy; c.z0 = b.z0 + dz; c.z1 = b.z1 + dz;
+    }
+  }
+  // nothing at all (not even overhead) within a square of half-size h; also away from pads/vents and the centre
+  clearAt(x, z, h) {
+    if (Math.abs(x) > ARENA - 2.5 - h || Math.abs(z) > ARENA - 2.5 - h || Math.hypot(x, z) < h + 1.5) return false;
+    for (const c of this.cols) { if (c.floor) continue; if (c.x1 > x - h && c.x0 < x + h && c.z1 > z - h && c.z0 < z + h) return false; }
+    for (const q of this.pads) if (Math.hypot(q.x - x, q.z - z) < h + 2.2) return false;
+    for (const q of this.vents) if (Math.hypot(q.x - x, q.z - z) < h + q.r + 1) return false;
+    return true;
+  }
+  spot(rng, h, test) { for (let k = 0; k < 500; k++) { const x = (rng() * 2 - 1) * (ARENA - 3 - h), z = (rng() * 2 - 1) * (ARENA - 3 - h); if (this.clearAt(x, z, h) && (!test || test(x, z))) return [x, z]; } return null; }
+  // swept footprint of a horizontal mover hits no static box
+  sweepClear(x0, z0, x1, z1, d) { for (let i = 0; i <= 24; i++) { const k = i / 24, ox = d[0] * k, oz = d[2] * k; for (const c of this.cols) { if (c.floor || c.mv) continue; if (c.x1 > x0 + ox && c.x0 < x1 + ox && c.z1 > z0 + oz && c.z0 < z1 + oz) return false; } } return true; }
+  pad(x, z, y, v) { this.pads.push({ x, z, y, r: 1.25, v: v.slice() }, { x: -x, z: -z, y, r: 1.25, v: [-v[0], v[1], -v[2]] }); }
+  // launch velocity from (x,y,z) landing on (tx,ty,tz), apex `over` above the higher end
+  launch(x, y, z, tx, ty, tz, over) { const g = 23, top = Math.max(y, ty) + (over || 2.2), vy = Math.sqrt(2 * g * (top - y)), down = Math.sqrt(2 * g * (top - ty)), t = (vy + down) / g; return [(tx - x) / t, vy, (tz - z) / t]; }
+  vent(x, z, r, h, nx, nz, lip) { this.vents.push({ x, z, r, h, nx, nz, lip }, { x: -x, z: -z, r, h, nx: -nx, nz: -nz, lip }); }
+  solids(minH, maxH) { return this.cols.filter((c) => !c.floor && !c.mv && !c.over && c.ramp < 0 && c.y1 >= minH && c.y1 <= maxH); }
+  // a panel that slides out of a wall to close its doorway (maze hedges, bunker doors)
+  slideDoors(rng, frac, per) {
+    for (const g of this._gaps || []) {
+      if (rng() > frac) continue; const len = g.g1 - g.g0; let a0, d;
+      if (g.g0 >= len + 0.05) { a0 = g.g0 - len; d = len; } else if (g.L - g.g1 >= len + 0.05) { a0 = g.g1; d = -len; } else continue;
+      const h = g.h - 0.04, t = g.t, ph = rng(), hold = 0.28;
+      if (g.horiz) this.mover(g.x0 + a0 + 0.04, 0, g.z0 - t, g.x0 + a0 + len - 0.04, h, g.z0 + t, [d, 0, 0], per, ph, hold);
+      else this.mover(g.x0 - t, 0, g.z0 + a0 + 0.04, g.x0 + t, h, g.z0 + a0 + len - 0.04, [0, 0, d], per, ph, hold);
+    }
+  }
+  popWalls(rng, n) { // cover walls that rise out of the floor and sink back
+    for (let k = 0; k < n; k++) {
+      const s = this.spot(rng, 1.8); if (!s) break; const [x, z] = s, hz = rng() < 0.5, h = 1.15 + rng() * 1.1;
+      if (hz) this.mover(x - 1.6, -2.6, z - 0.28, x + 1.6, -0.05, z + 0.28, [0, h + 0.05, 0], 9 + rng() * 5, rng(), 0.3);
+      else this.mover(x - 0.28, -2.6, z - 1.6, x + 0.28, -0.05, z + 1.6, [0, h + 0.05, 0], 9 + rng() * 5, rng(), 0.3);
+    }
+  }
+  gim_plaza(rng) { this.popWalls(rng, 8); }
+  gim_city(rng) { // lifts against the walls of tall buildings, up to their (walkable) roofs
+    const list = this.solids(4.5, 16).filter((c) => c.x1 - c.x0 >= 3 && c.z1 - c.z0 >= 3), hw = 1.3; let n = 0;
+    for (let k = 0; k < 160 && n < 3 && list.length; k++) {
+      const c = list[Math.floor(rng() * list.length)], side = Math.floor(rng() * 4), along = rng();
+      let x, z, rx, rz;
+      if (side < 2) { z = lerp(c.z0 + hw + 0.2, c.z1 - hw - 0.2, along); x = side ? c.x1 + hw + 0.06 : c.x0 - hw - 0.06; rx = side ? c.x1 - 0.5 : c.x0 + 0.5; rz = z; }
+      else { x = lerp(c.x0 + hw + 0.2, c.x1 - hw - 0.2, along); z = side === 3 ? c.z1 + hw + 0.06 : c.z0 - hw - 0.06; rz = side === 3 ? c.z1 - 0.5 : c.z0 + 0.5; rx = x; }
+      if (!this.clearAt(x, z, hw) || Math.abs(this.heightAt(rx, rz) - c.y1) > 0.05) continue;
+      this.mover(x - hw, -0.45, z - hw, x + hw, 0.15, z + hw, [0, c.y1 - 0.15, 0], 8 + c.y1 * 0.45, rng(), 0.24); n++;
+    }
+    if (!n) this.popWalls(rng, 6);
+  }
+  gim_canyon(rng) { // updraft columns beside the plateaus, nudging you onto the top
+    const list = this.solids(2.3, 5.8).filter((c) => c.x1 - c.x0 >= 5 && c.z1 - c.z0 >= 4); let n = 0;
+    for (let k = 0; k < 200 && n < 4 && list.length; k++) {
+      const c = list[Math.floor(rng() * list.length)], side = Math.floor(rng() * 4), along = rng(), off = 2.1; let x, z, nx = 0, nz = 0;
+      if (side < 2) { z = lerp(c.z0 + 1.5, c.z1 - 1.5, along); x = side ? c.x1 + off : c.x0 - off; nx = side ? -1 : 1; }
+      else { x = lerp(c.x0 + 1.5, c.x1 - 1.5, along); z = side === 3 ? c.z1 + off : c.z0 - off; nz = side === 3 ? -1 : 1; }
+      if (!this.clearAt(x, z, 1.45) || Math.abs(this.heightAt(x + nx * 3, z + nz * 3) - c.y1) > 0.05) continue;
+      this.vent(x, z, 1.4, c.y1 + 2.6, nx, nz, c.y1); n++;
+    }
+    if (!n) this.popWalls(rng, 6);
+  }
+  gim_yard(rng) { // containers shuttling along the open middle lane
+    const rot = this._rot || 0, Rt = (x, z) => rot ? [-z, x] : [x, z];
+    let done = 0;
+    for (const [z0, z1] of [[1.4, 3.4], [-3.4, -1.4]]) {
+      let best = null; // longest clear run for a 6 m container starting between x=9 and x=41
+      for (let a = 9; a <= 35; a += 0.5) for (let L = 26; L >= 8; L -= 2) { if (a + 6 + L > ARENA - 2) continue; const q = [Rt(a, z0), Rt(a + 6, z1)], d = Rt(L, 0); const bx0 = Math.min(q[0][0], q[1][0]), bx1 = Math.max(q[0][0], q[1][0]), bz0 = Math.min(q[0][1], q[1][1]), bz1 = Math.max(q[0][1], q[1][1]); if (this.sweepClear(bx0, bz0, bx1, bz1, [d[0], 0, d[1]]) && this.sweepClear(-bx1, -bz1, -bx0, -bz0, [-d[0], 0, -d[1]])) { if (!best || L > best.L) best = { bx0, bx1, bz0, bz1, d, L }; break; } }
+      if (!best) continue;
+      this.mover(best.bx0, 0, best.bz0, best.bx1, 2.6, best.bz1, [best.d[0], 0, best.d[1]], 7 + best.L * 0.35, done * 0.5 + rng() * 0.2, 0.12); done++;
+    }
+    if (!done) this.popWalls(rng, 6);
+  }
+  gim_temple(rng) { // stone pillars rising and sinking in a ring around the altar
+    let n = 0; for (let k = 0; k < 7; k++) { const s = this.spot(rng, 1.15, (x, z) => { const r = Math.hypot(x, z); return r > 10 && r < 30; }); if (!s) break; const [x, z] = s; this.mover(x - 1.1, -0.6, z - 1.1, x + 1.1, 0.25, z + 1.1, [0, 2.4 + rng() * 2, 0], 8, k * 0.15, 0.25); n++; }
+    if (!n) this.popWalls(rng, 6);
+  }
+  gim_maze(rng) { this.slideDoors(rng, 0.22, 7); }
+  gim_bunker(rng) { this.slideDoors(rng, 0.25, 6); }
+  gim_towers(rng) { // launch pads on the tower tops fire you to another tower; ground pads get you up
+    const T = (this._tops || []).map((t) => t).concat((this._tops || []).map((t) => [-t[0], -t[1], t[2], t[3]]));
+    for (const t of this._tops || []) {
+      let o = null, bd = 0; for (const u of T) { const d = Math.hypot(u[0] - t[0], u[1] - t[1]); if (d > 14 && d < 50 && (!o || Math.abs(d - 30) < Math.abs(bd - 30))) { o = u; bd = d; } }
+      if (o && Math.abs(this.heightAt(t[0], t[1]) - t[2]) < 0.05) { const ax = t[0] - o[0], az = t[1] - o[1], al = Math.hypot(ax, az) || 1, tx = o[0] + ax / al * 1.75, tz = o[1] + az / al * 1.75; this.pad(t[0], t[1], t[2], this.launch(t[0], t[2], t[1], tx, o[2], tz, 3.5)); } // land beside the far pad, not on it
+      for (let k = 0; k < 30; k++) { const a = rng() * TAU, r = 8 + rng() * 4, x = t[0] + Math.cos(a) * r, z = t[1] + Math.sin(a) * r; if (!this.clearAt(x, z, 1.4)) continue; const tx = t[0] + Math.cos(a) * 1.75, tz = t[1] + Math.sin(a) * 1.75; if (Math.abs(this.heightAt(tx, tz) - t[2]) > 0.05) continue; this.pad(x, z, 0, this.launch(x, 0, z, tx, t[2], tz, 2)); break; }
+    }
+    if (!this.pads.length) this.popWalls(rng, 6);
+  }
+  gim_arena(rng) { // platforms circling the pit
+    for (let k = 0; k < 2; k++) this.mover(-1.6, 0.45, -1.6, 1.6, 0.95, 1.6, [26, 0, 0], 34, k * 0.25 + rng() * 0.05, 0, true);
+  }
+  gim_forest(rng) { // bounce mushrooms that throw you up onto the canopies
+    const list = this.cols.filter((c) => c.over && !c.mv && c.y1 > 5 && c.y1 < 12 && (c.z0 + c.z1) < 0); let n = 0;
+    for (let k = 0; k < 200 && n < 5 && list.length; k++) {
+      const c = list[Math.floor(rng() * list.length)], cx = (c.x0 + c.x1) / 2, cz = (c.z0 + c.z1) / 2, a = rng() * TAU, r = 3.6 + rng() * 2.5, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      if (!this.clearAt(x, z, 1.3)) continue; const tx = cx + Math.cos(a) * 0.7, tz = cz + Math.sin(a) * 0.7;
+      this.pad(x, z, 0, this.launch(x, 0, z, tx, c.y1, tz, 1.6)); n++;
+    }
+    if (!n) this.popWalls(rng, 6);
+  }
   rampT(c, x, z) { switch (c.ramp) { case 0: return (x - c.x0) / (c.x1 - c.x0); case 1: return (c.x1 - x) / (c.x1 - c.x0); case 2: return (z - c.z0) / (c.z1 - c.z0); default: return (c.z1 - z) / (c.z1 - c.z0); } }
   topAt(c, x, z) { return c.ramp < 0 ? c.y1 : c.y0 + (c.y1 - c.y0) * clamp(this.rampT(c, x, z), 0, 1); }
   // highest walkable surface under the feet (not higher than feet + STEP)
   groundY(x, z, feet) {
     let best = -1e9; const lim = feet + STEP;
-    for (const c of this.cols) { if (x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) continue; const t = this.topAt(c, x, z); if (t <= lim && t > best) best = t; }
-    return best;
+    let bc = null; for (const c of this.cols) { if (x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) continue; const t = this.topAt(c, x, z); if (t <= lim && t > best) { best = t; bc = c; } }
+    this.lastG = bc; return best;
   }
   // push a vertical cylinder out of walls (xz only). returns true if touched
   collide(p, radius, height) {
@@ -1440,8 +1597,8 @@ class GameMap {
   }
 
   // ----- render mesh
-  buildMesh() {
-    const v = []; const all = this.cols.concat(this.deco);
+  buildMesh(list) {
+    const v = []; const all = list || this.cols.filter((c) => !c.mv).concat(this.deco);
     const quad = (p, n, w, h, shade) => { // p: 4 corners (a,b,c,d) ccw seen from outside; uv a=(0,0) b=(w,0) c=(w,h) d=(0,h)
       const uv = [[0, 0], [w, 0], [w, h], [0, h]];
       for (const i of [0, 1, 2, 0, 2, 3]) v.push(p[i][0], p[i][1], p[i][2], n[0], n[1], n[2], uv[i][0], uv[i][1], w, h, shade);
@@ -1752,6 +1909,13 @@ const Snd = {
       case 'tick': this.tone(d, t, 0.05, 'square', 1000, 1000, 0.15); break;
       case 'win': [523, 659, 784, 1047, 1319].forEach((f, i) => { this.tone(d, t + i * 0.11, 0.5, 'triangle', f, f, 0.3); this.tone(d, t + i * 0.11, 0.5, 'sawtooth', f / 2, f / 2, 0.08); }); wet(0.8); break;
       case 'lose': [440, 392, 330, 262].forEach((f, i) => this.tone(d, t + i * 0.16, 0.6, 'triangle', f, f * 0.97, 0.3)); wet(0.8); break;
+      case 'flap': this.nz(d, t, 0.22, 'bandpass', 380, 900, 0.9, 0.7, 0.05); this.nz(d, t + 0.08, 0.16, 'lowpass', 600, 200, 0.7, 0.4, 0.03); break;
+      case 'dash': this.nz(d, t, 0.25, 'bandpass', 900, 3200, 1.1, 0.8, 0.02); this.tone(d, t, 0.18, 'sine', 300, 900, 0.25, 0.01); break;
+      case 'hook': this.nz(d, t, 0.06, 'highpass', 3000, 0, 1, 0.6); this.tone(d, t, 0.12, 'square', 1400, 700, 0.15); this.nz(d, t + 0.05, 0.3, 'bandpass', 2600, 1200, 4, 0.35, 0.02); break;
+      case 'hookmiss': this.nz(d, t, 0.25, 'bandpass', 2400, 900, 3, 0.35, 0.02); break;
+      case 'jet': this.nz(d, t, 0.12, 'lowpass', 900 * r, 500, 0.6, 0.45, 0.02); break;
+      case 'cloak': this.tone(d, t, 0.35, 'sine', 900, 300, 0.18, 0.04); this.tone(d, t, 0.35, 'triangle', 1350, 450, 0.08, 0.04); this.nz(d, t, 0.3, 'highpass', 5000, 0, 1, 0.15, 0.1); wet(0.5); break;
+      case 'pad': this.tone(d, t, 0.3, 'sine', 180, 700, 0.5, 0.01); this.nz(d, t, 0.35, 'bandpass', 500, 2400, 1, 0.5, 0.02); wet(0.4); break;
       case 'barrier': this.tone(d, t, 0.25, 'sine', 240, 180, 0.25); this.tone(d, t, 0.25, 'sine', 363, 270, 0.15); break;
     }
   },
@@ -1850,7 +2014,7 @@ class Player {
     this.id = NEXT_ID++; this.kind = kind; this.name = name; this.pos = [0, 0, 0]; this.vel = [0, 0, 0]; this.yaw = 0; this.pitch = 0;
     this.anim = new Animator(); this.model = M4.create(); this.gunM = M4.create(); this.headPos = [0, 1.6, 0]; this.muzzle = [0, 1.4, 0];
     this.state = 'out'; this.hp = 100; this.kills = 0; this.assists = 0; this.deaths = 0; this.grenades = 0; this.team = -1; this.gems = 0; this.pts = 0; this.cos = [0, 0, 0, 0];
-    this.inp = { f: 0, s: 0, fire: false, aim: false, jump: false, crouch: false, sprint: false, reload: false, grenade: false, swap: false, melee: false };
+    this.inp = { f: 0, s: 0, fire: false, aim: false, jump: false, crouch: false, sprint: false, reload: false, grenade: false, swap: false, melee: false, gI: false, gJ: false, gK: false, gL: false }; this.gad = null; this.gs = null; this.dashT = 0; this.padFly = false; this.gcol = null;
     this.prev = {}; this.c1 = [1, 1, 1]; this.c2 = [1, 1, 1]; this.setColors(c1, c2);
     this.rd = { mesh: null, model: this.model, skin: this.anim.skin, c1: this.c1, c2: this.c2, flash: 0, alpha: 1, glow: 0, hidden: false, noShadow: false };
     this.gun = { mesh: null, model: this.gunM, tint: [1, 1, 1], emis: 0 };
@@ -1870,7 +2034,7 @@ class Player {
   get inWorld() { return this.state === 'live' || this.state === 'drop' || this.state === 'dead'; }
   spawnDrop(x, z) {
     const lim = ARENA - 1.5; this.pos[0] = clamp(x, -lim, lim); this.pos[2] = clamp(z, -lim, lim); this.pos[1] = 58; this.vel[0] = 0; this.vel[1] = -6; this.vel[2] = 0;
-    this.state = 'drop'; this.hp = 100; this.setWeapon('pistol'); GM.spawnWeapon(this); this.grenades = 0; this.clearTimers(); this.anim.reset(); this.invuln = 99; this.rd.alpha = 1; this.rd.hidden = false; this.visY = this.pos[1];
+    this.state = 'drop'; this.hp = 100; this.setWeapon('pistol'); GM.spawnWeapon(this); Gad.clear(this); this.dashT = 0; this.padFly = false; this.gcol = null; this.grenades = 0; this.clearTimers(); this.anim.reset(); this.invuln = 99; this.rd.alpha = 1; this.rd.hidden = false; this.visY = this.pos[1];
     if (G.map) G.map.collide(this.pos, P_RADIUS + 0.2, 60);
     Snd.play('spawn', this.pos, 0.7);
   }
@@ -1894,10 +2058,12 @@ class Player {
     this.sprinting = !this.fps && inp.sprint && inp.f > 0.3 && !this.aiming && !this.crouch && this.sinceFire > 0.35 && this.reloadT <= 0 && this.grounded;
     this.ads = damp(this.ads, this.aiming ? 1 : 0, 14, dt);
     const sp = (this.crouch ? 1.95 : this.aiming ? 2.6 : this.sprinting ? 6.9 : 5.2) * (w.heavy ? 0.72 : 1);
-    if (this.grounded) { const k = 1 - Math.exp(-(this.fps ? 19 : 13) * dt); this.vel[0] += (wx * sp - this.vel[0]) * k; this.vel[2] += (wz * sp - this.vel[2]) * k; }
-    else if (wl > 0.05) { const k = 1 - Math.exp(-(drop ? 2.2 : 1.5) * dt), asp = drop ? 9 : sp; this.vel[0] += (wx * asp - this.vel[0]) * k; this.vel[2] += (wz * asp - this.vel[2]) * k; }
+    const free = this.dashT > 0 || this.padFly; if (this.dashT > 0) this.dashT -= dt; if (this.padFly && (this.padFlyT -= dt) <= 0) this.padFly = false;
+    if (this.grounded && !free) { const k = 1 - Math.exp(-(this.fps ? 19 : 13) * dt); this.vel[0] += (wx * sp - this.vel[0]) * k; this.vel[2] += (wz * sp - this.vel[2]) * k; }
+    else if (wl > 0.05 && !free) { const k = 1 - Math.exp(-(drop ? 2.2 : 1.5) * dt), asp = drop ? 9 : sp; this.vel[0] += (wx * asp - this.vel[0]) * k; this.vel[2] += (wz * asp - this.vel[2]) * k; }
     if (inp.jump && !pv.jump && this.grounded && this.landT <= 0) { this.vel[1] = 7.7; this.grounded = false; this.crouch = false; Snd.play('jump', this.pos, 0.6); if (!this.anim.acting) this.anim.play('Rifle_Jump', { mask: 0, rate: 1.6, fadeIn: 0.06, fadeOut: 0.18, weight: 0.8 }); if (this === G.me) G.netEvent('jp'); }
-    this.physics(dt, drop ? 15 : 23, drop ? -36 : -60, false);
+    let gm = 1; if (this.state === 'live' && this.kind !== 'remote') { if (this.gs) gm = Gad.update(this, dt); Gad.zones(this, dt); }
+    this.physics(dt, (drop ? 15 : 23) * gm, drop ? -36 : -60, false);
     // ---- weapon
     this.fireCd -= dt; this.bloom = Math.max(0, this.bloom - dt * 0.07); this.kick = damp(this.kick, 0, 10, dt);
     if (this.sinceFire > 60 / w.rpm + 0.05 && this.spray > 0) this.spray = Math.max(0, this.spray - dt * (w.climb + 3) / w.recov);
@@ -1922,19 +2088,21 @@ class Player {
     }
     if (inp.swap && !pv.swap && this.state === 'live' && !busy) G.trySwap(this);
     if (this.state === 'live' && this.sinceHit > (this.kind === 'bot' ? 6 : 3.5) && this.hp < 100) this.hp = Math.min(100, this.hp + (this.kind === 'bot' ? 9 : 18) * dt);
-    pv.jump = inp.jump; pv.fire = inp.fire; pv.grenade = inp.grenade; pv.melee = inp.melee; pv.reload = inp.reload; pv.swap = inp.swap;
+    pv.jump = inp.jump; pv.fire = inp.fire; pv.grenade = inp.grenade; pv.melee = inp.melee; pv.reload = inp.reload; pv.swap = inp.swap; pv.gI = inp.gI; pv.gJ = inp.gJ; pv.gK = inp.gK; pv.gL = inp.gL;
     // footsteps
     if (this.grounded) { const hs = Math.hypot(this.vel[0], this.vel[2]); this.stepAcc += hs * dt; const stride = this.sprinting ? 1.7 : this.crouch ? 0.95 : hs > 3 ? 1.14 : 0.9; if (this.stepAcc > stride) { this.stepAcc = 0; if (hs > 1) Snd.play('step', this.pos, this.crouch ? 0.25 : this.sprinting ? 1.0 : 0.7); } }
     this.animate(dt);
   }
   physics(dt, grav, term, dead) {
-    const p = this.pos, v = this.vel, map = G.map, wasG = this.grounded, prevY = p[1];
+    const p = this.pos, v = this.vel, map = G.map, wasG = this.grounded;
+    if (wasG && this.gcol && this.gcol.mv) { const m = this.gcol.mv; p[0] += m.dx; p[1] += m.dy; p[2] += m.dz; }
+    const prevY = p[1];
     v[1] -= (grav || 23) * dt; if (v[1] < (term || -60)) v[1] = term || -60;
     p[0] += v[0] * dt; p[1] += v[1] * dt; p[2] += v[2] * dt;
     const gy = map.groundY(p[0], p[2], Math.max(prevY, p[1]));
     if (v[1] <= 0 && p[1] <= gy + (wasG ? 0.4 : 0)) {
-      const imp = -v[1]; p[1] = gy; v[1] = 0; this.grounded = true; if (!wasG && !dead) this.onLand(imp);
-    } else this.grounded = false;
+      const imp = -v[1]; p[1] = gy; v[1] = 0; this.grounded = true; this.gcol = map.lastG; if (!wasG && !dead) this.onLand(imp);
+    } else { this.grounded = false; this.gcol = null; }
     const hx = p[0], hz = p[2];
     if (map.collide(p, P_RADIUS, this.crouch ? 1.2 : P_HEIGHT) && !dead) { // kill velocity into walls
       const ddx = p[0] - hx, ddz = p[2] - hz, l = Math.hypot(ddx, ddz); if (l > 1e-5) { const nx = ddx / l, nz = ddz / l, vn = v[0] * nx + v[2] * nz; if (vn < 0) { v[0] -= nx * vn; v[2] -= nz * vn; } }
@@ -1945,12 +2113,13 @@ class Player {
     this.visY = Math.abs(this.visY - p[1]) > 1.2 || !this.grounded ? p[1] : damp(this.visY, p[1], 22, dt);
   }
   onLand(imp) {
+    if (this.state !== 'drop' && imp <= 8) this.padFly = false;
     if (this.state === 'drop') {
       this.state = 'live'; this.invuln = this.kind === 'bot' ? 1.0 : 4.0; this.liveT = 0; this.landT = 0.55;
       this.anim.play('Rifle_Jump_In_Place', { mask: 0, t0: 1.2, rate: 1.25, fadeIn: 0.02, fadeOut: 0.25 });
       FX.landing(this.pos[0], this.pos[1], this.pos[2], this.c1); Snd.play('slam', this.pos, 1); G.pulse(this.pos[0], this.pos[2], 1.0); G.shakeAt(this.pos, 0.9, 30);
       if (this === G.me) G.netEvent('ld');
-    } else if (imp > 8) { Snd.play('land', this.pos, clamp(imp / 16, 0.3, 1)); this.landT = imp > 13 ? 0.2 : 0; if (this === G.me) FX.shake = Math.max(FX.shake, imp * 0.02); }
+    } else if (this.gs && this.gs.slam) { this.padFly = false; Gad.onLand(this); } else if (imp > 8) { this.padFly = false; Snd.play('land', this.pos, clamp(imp / 16, 0.3, 1)); this.landT = imp > 13 ? 0.2 : 0; if (this === G.me) FX.shake = Math.max(FX.shake, imp * 0.02); }
   }
   // ---------- actions
   aimDir(out) { const cp = Math.cos(this.pitch); out[0] = Math.sin(this.yaw) * cp; out[1] = Math.sin(this.pitch); out[2] = Math.cos(this.yaw) * cp; return out; }
@@ -1962,6 +2131,7 @@ class Player {
       this.fireCd = 0.25; return;
     }
     if (this.kind !== 'bot' && this.state === 'live' && this.invuln > 0 && this.invuln < 50) this.invuln = 0;
+    if (this.gs && this.gs.cloak > 0) Gad.uncloak(this);
     this.mag--; this.fireCd = 60 / (w.rpm * (w.spin ? 0.4 + 0.6 * this.spinV : 1)); this.sinceFire = 0;
     const o = [0, 0, 0], d = [0, 0, 0], rk = recoilAt(w, this.spray), spr = this.spreadNow();
     if (this === G.me && G.eyeOK) { o[0] = G.eyeBase[0]; o[1] = G.eyeBase[1]; o[2] = G.eyeBase[2]; } else { o[0] = this.pos[0]; o[1] = this.eyeY(); o[2] = this.pos[2]; }
@@ -1997,14 +2167,14 @@ class Player {
     this.anim.play(c.name, { mask: 1, rate: c.dur / w.reload, fadeIn: 0.1, fadeOut: 0.18 }); if (this === G.me) G.netEvent('rl');
   }
   swapAnim() { this.swapT = 0.45; this.anim.play('Rifle_Pull_Out', { mask: 1, t0: 0.6, rate: 2.6, fadeIn: 0.06, fadeOut: 0.15 }); Snd.play('swap', this.pos, 0.8); }
-  startThrow() { this.throwT = 0.85; this.thrown = false; this.anim.play('Toss_Grenade', { mask: 1, t0: 0.85, t1: 2.9, rate: 2.5, fadeIn: 0.07, fadeOut: 0.16 }); Snd.play('throw', this.pos, 0.8); }
+  startThrow() { if (this.gs) Gad.uncloak(this); this.throwT = 0.85; this.thrown = false; this.anim.play('Toss_Grenade', { mask: 1, t0: 0.85, t1: 2.9, rate: 2.5, fadeIn: 0.07, fadeOut: 0.16 }); Snd.play('throw', this.pos, 0.8); }
   releaseGrenade() {
     if (this.grenades <= 0) return; this.grenades--; const d = [0, 0, 0];
     if (this === G.me) { const o = [0, 0, 0]; G.aimRay(o, d); } else this.aimDir(d);
     const hp = this.headPos, x = hp[0] + d[0] * 0.5, y = hp[1] + 0.1, z = hp[2] + d[2] * 0.5, sp = 17;
     G.addGrenade(x, y, z, d[0] * sp + this.vel[0] * 0.4, d[1] * sp + 4.2, d[2] * sp + this.vel[2] * 0.4, this, true);
   }
-  startMelee() { this.meleeT = 0.68; this.struck = false; this.anim.play('Rifle_Punch', { mask: 1, t0: 0.4, t1: 2.3, rate: 2.7, fadeIn: 0.05, fadeOut: 0.16 }); Snd.play('melee', this.pos, 0.9); if (this.grounded) { this.vel[0] += Math.sin(this.yaw) * 4; this.vel[2] += Math.cos(this.yaw) * 4; } if (this === G.me) G.netEvent('ml'); }
+  startMelee() { if (this.gs) Gad.uncloak(this); this.meleeT = 0.68; this.struck = false; this.anim.play('Rifle_Punch', { mask: 1, t0: 0.4, t1: 2.3, rate: 2.7, fadeIn: 0.05, fadeOut: 0.16 }); Snd.play('melee', this.pos, 0.9); if (this.grounded) { this.vel[0] += Math.sin(this.yaw) * 4; this.vel[2] += Math.cos(this.yaw) * 4; } if (this === G.me) G.netEvent('ml'); }
   meleeHit() {
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw); let hit = false;
     for (const q of G.players) {
@@ -2052,7 +2222,7 @@ class Player {
     st.aim = (this.fps || this.aiming || this.sinceFire < 0.6) ? 1 : 0; st.pitch = dead || this.frozen ? 0 : clamp(this.pitch, -1.1, 1.1) * (this.state === 'drop' ? 0.3 : 1);
     this.anim.update(dt, st); this.updateModel();
     const r = this.rd; r.flash = this.flash * 0.75; r.glow = this.invuln > 0 && this.state === 'live' ? 0.2 + 0.18 * Math.sin(G.now * 18) : 0;
-    r.alpha = dead ? clamp(1 - (this.deadT - 3.2) / 1.2, 0, 1) : 1; r.hidden = this.state === 'out' || (dead && this.deadT > 4.4) || this.hide; r.noShadow = r.hidden || r.alpha < 0.5;
+    r.alpha = dead ? clamp(1 - (this.deadT - 3.2) / 1.2, 0, 1) : 1; if (!dead && this.gs && Gad.cloaked(this)) r.alpha = this === G.me ? 0.32 : 0.06 + 0.04 * Math.sin(G.now * 9 + this.id); r.hidden = this.state === 'out' || (dead && this.deadT > 4.4) || this.hide; r.noShadow = r.hidden || r.alpha < 0.5;
   }
   updateModel() {
     M4.yawPos(this.model, this.yaw, this.pos[0], this.visY, this.pos[2]);
@@ -2063,7 +2233,7 @@ class Player {
     M4.point(this.muzzle, this.gunM, 0, 0.05, this.weapon.muz);
     this.gun.mesh = GunMeshes[this.weapon.key]; this.gun.emis = 0.05;
   }
-  gunVisible() { return this.showGun && !this.rd.hidden && this.state !== 'dead' && this.throwT <= 0; }
+  gunVisible() { return this.showGun && !this.rd.hidden && this.state !== 'dead' && this.throwT <= 0 && !(this !== G.me && this.gs && Gad.cloaked(this)); }
 }
 
 // ==== 09_bot.js ====
@@ -2093,7 +2263,7 @@ class Bot {
       for (const q of G.players) {
         if (q === p || q.state !== 'live' || GM.ally(q, p)) continue; const dx = q.pos[0] - p.pos[0], dz = q.pos[2] - p.pos[2], d = Math.hypot(dx, dz); if (d > 46) continue;
         const facing = (dx * fx + dz * fz) / (d || 1), aware = d < 6 || facing > 0.25 || (p.lastAttacker === q && now - p.lastAttackT < 3) || q.sinceFire < 0.5 && d < 30;
-        if (!aware || q.invuln > 0) continue; if (!map.los(p.pos[0], ey, p.pos[2], q.pos[0], q.pos[1] + 1.2, q.pos[2])) continue;
+        if (!aware || q.invuln > 0 || (d > 5 && Gad.cloaked(q))) continue; if (!map.los(p.pos[0], ey, p.pos[2], q.pos[0], q.pos[1] + 1.2, q.pos[2])) continue;
         const provoked = (p.lastAttacker === q && now - p.lastAttackT < 4) || d < 6;
         if (q.kind !== 'bot' && !provoked && q !== this.target) { let n = 0; for (const b of G.bots) if (b !== this && b.target === q && b.p.state === 'live') n++; if (n >= 2) continue; }
         const s = d - (q === this.target ? 10 : 0) - (p.lastAttacker === q ? 6 : 0) - GM.botBias(q) + (q.kind !== 'bot' && !provoked ? 7 : 0); if (s < bs) { bs = s; best = q; }
@@ -2136,7 +2306,7 @@ class Bot {
         if (this.lastSeen && now - this.seenT < 5) { this.goal = this.lastSeen; this.lastSeen = null; }
         else if (mg) { this.goal = mg; this.goalT = rand(4, 7); }
         else {
-          let it = null, bd = 1e9; for (const i of G.match.items) { const d = Math.hypot(i.x - p.pos[0], i.z - p.pos[2]); const want = i.kind === 'grenade' ? (p.grenades < 2 && d < 30) : POWER.includes(i.kind) ? (!w.power && d < 45) : (w.key === 'pistol' || (d < 18 && Math.random() < 0.3)); if (want && d < bd) { bd = d; it = i; } }
+          let it = null, bd = 1e9; for (const i of G.match.items) { const d = Math.hypot(i.x - p.pos[0], i.z - p.pos[2]); const want = i.kind === 'grenade' ? (p.grenades < 2 && d < 30) : isGad(i.kind) ? (!p.gad && d < 26) : POWER.includes(i.kind) ? (!w.power && d < 45) : (w.key === 'pistol' || (d < 18 && Math.random() < 0.3)); if (want && d < bd) { bd = d; it = i; } }
           if (it && Math.random() < 0.8) this.goal = [it.x, it.y, it.z]; else this.goal = map.randomSpot(null, [0, 0, 0]);
         }
       }
@@ -2158,8 +2328,9 @@ class Bot {
     // stuck handling
     this.stuckT += dt;
     if (this.stuckT > 0.8) { const moved = Math.hypot(p.pos[0] - this.lastPos[0], p.pos[2] - this.lastPos[2]); this.lastPos[0] = p.pos[0]; this.lastPos[2] = p.pos[2]; this.stuckT = 0; if (moved < 0.35 && ml > 0.01) { inp.jump = true; this.strafe = -this.strafe; this.stuckN = (this.stuckN || 0) + 1; if (this.stuckN > 2) { this.goal = null; this.path = null; this.stuckN = 0; } } else this.stuckN = 0; }
+    Gad.botUse(this, p, dt);
     // weapon pickups on contact
-    for (const i of G.match.items) { if (i.kind === 'grenade') continue; if (Math.hypot(i.x - p.pos[0], i.z - p.pos[2]) < 1.3 && Math.abs(i.y - p.pos[1]) < 1.5 && !w.power && (w.key === 'pistol' || POWER.includes(i.kind) || p.reserve + p.mag < w.mag)) { inp.swap = true; break; } }
+    for (const i of G.match.items) { if (i.kind === 'grenade') continue; if (isGad(i.kind)) { if (!p.gad && Math.hypot(i.x - p.pos[0], i.z - p.pos[2]) < 1.3 && Math.abs(i.y - p.pos[1]) < 1.5) { inp.swap = true; break; } continue; } if (Math.hypot(i.x - p.pos[0], i.z - p.pos[2]) < 1.3 && Math.abs(i.y - p.pos[1]) < 1.5 && !w.power && (w.key === 'pistol' || POWER.includes(i.kind) || p.reserve + p.mag < w.mag)) { inp.swap = true; break; } }
   }
 }
 function randomSkin() { const h = Math.random(), h2 = h + rand(0.12, 0.5) * (Math.random() < 0.5 ? 1 : -1); const a = hsv(h, rand(0.65, 1), rand(0.85, 1)), b = hsv(h2, rand(0.7, 1), rand(0.45, 0.95)); return [rgbToHex(a[0], a[1], a[2]), rgbToHex(b[0], b[1], b[2])]; }
@@ -2236,6 +2407,9 @@ const Net = {
     if (pl.name !== name) pl.name = name; if (pl.hex1 !== c1 || pl.hex2 !== c2) pl.setColors(c1, c2);
     pl.kills = this.num(pr.k, 0, 999, 0) | 0; pl.assists = this.num(pr.a, 0, 999, 0) | 0; pl.deaths = this.num(pr.d, 0, 999, 0) | 0; GM.applyPresence(pl, pr); pl.cos = COS.validate(pr.cs);
     const wi = this.num(pr.w, 0, MAX_WID, 0) | 0; if (pl.weapon.id !== wi) pl.weapon = WEAPON_LIST[wi];
+    const g = Array.isArray(pr.g) ? pr.g : null, gd = g ? GAD_LIST[this.num(g[0], 0, GAD_LIST.length - 1, 0) | 0] : null;
+    if (gd) { if (pl.gad !== gd.key) { pl.gad = gd.key; pl.gs = Gad.fresh(gd.key); } const f = this.num(g[1], 0, 127, 0) | 0; pl.gs.f = f; pl.gs.hook = (f & 4) && g.length >= 5 ? [this.num(g[2], -60, 60, 0), this.num(g[3], -5, 90, 0), this.num(g[4], -60, 60, 0)] : null; Gad.remote(pl, f); }
+    else if (pl.gad) { pl.gad = null; pl.gs = null; }
     const ph = pr.ph, f = this.num(pr.f, 0, 255, 0) | 0;
     pe.crouch = !!(f & 1); pe.aim = !!(f & 2); pe.ground = !!(f & 4); pe.sprint = !!(f & 8);
     const s = Array.isArray(pr.s) ? pr.s : null;
@@ -2274,6 +2448,8 @@ const Net = {
     else if (t === 'ml') { pl.anim.play('Rifle_Punch', { mask: 1, t0: 0.4, t1: 2.3, rate: 2.7, fadeIn: 0.05, fadeOut: 0.16 }); Snd.play('melee', pl.pos, 0.9); }
     else if (t === 'jp') { pl.anim.play('Rifle_Jump', { mask: 0, rate: 1.6, fadeIn: 0.06, fadeOut: 0.18, weight: 0.8 }); Snd.play('jump', pl.pos, 0.6); }
     else if (t === 'ld') { FX.landing(pl.pos[0], pl.pos[1], pl.pos[2], pl.c1); Snd.play('slam', pl.pos, 1); G.pulse(pl.pos[0], pl.pos[2], 1); G.shakeAt(pl.pos, 0.9, 30); pl.anim.play('Rifle_Jump_In_Place', { mask: 0, t0: 1.2, rate: 1.25, fadeIn: 0.02, fadeOut: 0.25 }); }
+    else if (t === 'sl') Gad.slamFx(pl);
+    else if (t === 'pd') { Snd.play('pad', pl.pos, 1); FX.landing(pl.pos[0], pl.pos[1], pl.pos[2], [1.6, 1.3, 0.4]); }
     else if (t === 'th') { pl.anim.play('Toss_Grenade', { mask: 1, t0: 0.85, t1: 2.9, rate: 2.5, fadeIn: 0.07, fadeOut: 0.16 }); }
   },
   // interpolate remote players (called every frame)
@@ -2303,7 +2479,8 @@ const Net = {
     if (me) {
       o.ph = me.state === 'live' ? 'A' : me.state === 'drop' ? 'D' : me.state === 'dead' ? 'X' : (G.screen === 'end' ? 'E' : 'L');
       o.s = [r2(me.pos[0]), r2(me.pos[1]), r2(me.pos[2]), r2(me.yaw % TAU), r2(me.pitch)]; o.f = (me.crouch ? 1 : 0) | (me.aiming ? 2 : 0) | (me.grounded ? 4 : 0) | (me.sprinting ? 8 : 0);
-      o.w = me.weapon.id; o.hp = Math.round(me.hp); o.k = me.kills; o.a = me.assists; o.d = me.deaths;
+      o.w = me.weapon.id; o.hp = Math.round(me.hp);
+      if (me.gs && (me.state === 'live' || me.state === 'drop')) { const f = Gad.flags(me), h = me.gs.hook; o.g = h && (f & 4) ? [GADGETS[me.gad].id, f, r2(h[0]), r2(h[1]), r2(h[2])] : [GADGETS[me.gad].id, f]; } else o.g = null; o.k = me.kills; o.a = me.assists; o.d = me.deaths;
     } else o.ph = 'L';
     GM.presence(o, me); if (me && me.cos) o.cs = me.cos;
     o.h = this.isHost ? G.hostBlock() : null;
@@ -2448,7 +2625,7 @@ const Input = {
       if (e.repeat) { if (['Tab', 'Space'].includes(e.code)) e.preventDefault(); return; }
       this.keys[e.code] = true; Snd.init();
       if (G.screen === 'play' || G.screen === 'dead' || G.screen === 'drop') {
-        if (['Tab', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+        if (['Tab', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
         if (e.code === 'KeyC') this.crouch = !this.crouch;
         if (e.code === 'KeyR') this.pulse('reload'); if (e.code === 'KeyT') this.pulse('swap'); if (e.code === 'KeyV') this.pulse('melee'); if (e.code === 'KeyF') G.toggleView(); if (e.code === 'KeyG') this.pulse('grenade');
         if (e.code === 'Escape' || e.code === 'KeyP') UI.togglePause();
@@ -2513,6 +2690,7 @@ const Input = {
     $('tAim').dataset.toggle = '1'; hold('tAim', () => { this.aimToggle = !this.aimToggle; $('tAim').classList.toggle('on', this.aimToggle); }, null, true);
     $('tCrouch').dataset.toggle = '1'; hold('tCrouch', () => { this.crouch = !this.crouch; $('tCrouch').classList.toggle('on', this.crouch); });
     hold('tView', () => G.toggleView());
+    for (const n of GAD_KEYS) hold('tg' + n, () => { this.btn['g' + n] = true; }, () => { this.btn['g' + n] = false; });
     hold('tPause', () => UI.togglePause()); hold('tScore', () => { $('score').hidden = !$('score').hidden; if (!$('score').hidden) UI.board($('boardBox'), false); });
   },
   lock() {
@@ -2525,7 +2703,7 @@ const Input = {
     try { const p = this.rawOK !== false && cv.requestPointerLock && cv.requestPointerLock({ unadjustedMovement: true }); if (p && p.catch) p.catch(rawFail); else if (!p) plain(); } catch (e) { rawFail(e); }
   },
   unlock() { try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { } },
-  resetPlay() { this.fire = this.aim = this.fireTouch = false; this.aimToggle = false; this.crouch = false; this.sprint = false; this.lookDX = this.lookDY = this.tlookDX = this.tlookDY = 0; this.pulses = {}; $('tAim').classList.remove('on'); $('tCrouch').classList.remove('on'); },
+  resetPlay() { for (const n of GAD_KEYS) this.btn['g' + n] = false; this.fire = this.aim = this.fireTouch = false; this.aimToggle = false; this.crouch = false; this.sprint = false; this.lookDX = this.lookDY = this.tlookDX = this.tlookDY = 0; this.pulses = {}; $('tAim').classList.remove('on'); $('tCrouch').classList.remove('on'); },
   // write the human player's input for this frame
   apply(me, dt) {
     const k = this.keys, inp = me.inp, S = G.settings, z = G.zoomNow || 1, zk = z > 1.01 ? S.zsens / z : 1;
@@ -2539,6 +2717,7 @@ const Input = {
     if (inp.jump && this.crouch) { this.crouch = false; $('tCrouch').classList.remove('on'); }
     inp.aim = this.aim || this.aimToggle; inp.fire = this.fire || this.fireTouch;
     for (const n of ['reload', 'swap', 'melee', 'grenade']) { inp[n] = this.pulses[n] > 0; if (this.pulses[n] > 0) this.pulses[n]--; }
+    for (const n of GAD_KEYS) inp['g' + n] = !!k['Key' + n] || !!this.btn['g' + n];
   },
 };
 
@@ -2597,15 +2776,15 @@ const UI = {
   syncView() { for (const b of $('viewSeg').children) b.setAttribute('aria-pressed', String(b.dataset.v === (G.settings.view === 'tps' ? 'tps' : 'fps'))); },
   syncQual() { for (const b of $('qual').children) b.setAttribute('aria-pressed', String(+b.dataset.q === G.settings.quality)); },
   keysHelp() {
-    const rows = Input.touch ? [['시점', '1인칭 / 3인칭 전환'], ['왼쪽 화면', '이동 스틱'], ['오른쪽 화면', '드래그로 시점 이동'], ['발사', '누르고 있으면 연사, 누른 채 드래그로 조준'], ['조준', '정조준 켜기/끄기'], ['수류탄', '주운 수류탄 던지기 (최대 3개)'], ['교체', '총 근처에서 나타나요'], ['장전·점프·앉기·근접', '각 버튼']]
-      : [['W A S D', '이동 (멈춰서 쏘면 정확해요)'], ['마우스', '시점'], [G.settings.swapFire ? '우클릭' : '좌클릭', '조준'], [G.settings.swapFire ? '좌클릭' : '우클릭', '발사 (연사하면 위로 튀니 아래로 당기기)'], ['Shift + ' + (G.settings.swapFire ? '좌클릭' : '우클릭'), '수류탄 (없으면 그냥 발사) · G도 가능'], ['R', '재장전'], ['T', '근처의 총으로 교체'], ['Space / C', '점프 / 앉기'], ['V', '근접 공격'], ['F', '1인칭 / 3인칭 전환'], ['Tab', '순위표'], ['Esc', '일시정지']];
+    const rows = Input.touch ? [['시점', '1인칭 / 3인칭 전환'], ['왼쪽 화면', '이동 스틱'], ['오른쪽 화면', '드래그로 시점 이동'], ['발사', '누르고 있으면 연사, 누른 채 드래그로 조준'], ['조준', '정조준 켜기/끄기'], ['수류탄', '주운 수류탄 던지기 (최대 3개)'], ['교체', '총·보조 근처에서 나타나요'], ['보조 버튼', '보조(날개·그래플러 등)를 끼면 오른쪽에 나타나요'], ['장전·점프·앉기·근접', '각 버튼']]
+      : [['W A S D', '이동 (멈춰서 쏘면 정확해요)'], ['마우스', '시점'], [G.settings.swapFire ? '우클릭' : '좌클릭', '조준'], [G.settings.swapFire ? '좌클릭' : '우클릭', '발사 (연사하면 위로 튀니 아래로 당기기)'], ['Shift + ' + (G.settings.swapFire ? '좌클릭' : '우클릭'), '수류탄 (없으면 그냥 발사) · G도 가능'], ['R', '재장전'], ['T', '근처의 총·보조로 교체'], ['I J K L', '보조 조작 (날개·그래플러 등) · 끼면 화면 아래에 조작법이 떠요'], ['Space / C', '점프 / 앉기'], ['V', '근접 공격'], ['F', '1인칭 / 3인칭 전환'], ['Tab', '순위표'], ['Esc', '일시정지']];
     $('keys').innerHTML = rows.map((r) => `<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('');
   },
   show(name) {
     for (const s of this.screens) $(s).hidden = s !== name;
     const s = G.screen, live = s === 'play' || s === 'dead' || s === 'drop';
     $('hud').hidden = !(live || s === 'end'); $('touch').hidden = !(Input.touch && s === 'play');
-    for (const id of ['cross', 'vital', 'ammo', 'mini', 'hitm', 'dmgdir']) $(id).style.display = s === 'play' ? '' : 'none';
+    for (const id of ['cross', 'vital', 'ammo', 'mini', 'hitm', 'dmgdir', 'gdg']) $(id).style.display = s === 'play' ? '' : 'none';
     for (const id of ['timer', 'feed']) $(id).style.display = live ? '' : 'none';
     if (!live) { $('toast').style.opacity = 0; $('banner').style.opacity = 0; $('modebar').hidden = true; this.last.mb = null; }
     $('prompt').hidden = true; $('score').hidden = true; if (G.screen !== 'play') { $('scope').style.opacity = 0; }
@@ -2650,7 +2829,7 @@ const UI = {
   buildMinimap() {
     const c = this.mapImg = document.createElement('canvas'); c.width = c.height = 264; const x = c.getContext('2d'), S = 264 / (ARENA * 2), b = hsv(G.map.hue, 0.6, 0.8);
     x.fillStyle = rgbToHex(b[0] * 0.28, b[1] * 0.28, b[2] * 0.28); x.fillRect(0, 0, 264, 264);
-    const cols = G.map.cols.filter((q) => !q.floor).sort((p, q) => p.y1 - q.y1);
+    const cols = G.map.cols.filter((q) => !q.floor && !q.mv).sort((p, q) => p.y1 - q.y1);
     for (const q of cols) { const k = clamp(0.4 + q.y1 / 9, 0.4, 1.25); x.fillStyle = rgbToHex(b[0] * k, b[1] * k, b[2] * k); x.fillRect((q.x0 + ARENA) * S, (q.z0 + ARENA) * S, (q.x1 - q.x0) * S, (q.z1 - q.z0) * S); }
   },
   update(dt) {
@@ -2680,11 +2859,33 @@ const UI = {
       const gap = Math.round(clamp(Math.tan(spr) / Math.tan(G.cam.fov / 2) * innerHeight / 2, 4, 70)); if (L.gap !== gap) { L.gap = gap; $('cross').style.setProperty('--gap', gap + 'px'); }
       const sc = w.scope && me.ads > 0.75 ? 1 : 0; if (L.sc !== sc) { L.sc = sc; $('scope').style.opacity = sc; $('cross').style.opacity = sc ? 0 : 1; }
       // pickup prompt
-      const it = G.nearItem, key = it ? it.id : 0; if (L.pr !== key) { L.pr = key; const p = $('prompt'); p.hidden = !it; $('tSwap').hidden = !it; if (it) { const ww = WEAPONS[it.kind]; p.innerHTML = Input.touch ? `${ww.name} · 교체 버튼` : `<kbd>T</kbd>${ww.name}(으)로 교체`; } }
+      const it = G.nearItem, key = it ? it.id : 0; if (L.pr !== key) { L.pr = key; const p = $('prompt'); p.hidden = !it; $('tSwap').hidden = !it; if (it) { const nm = itemName(it.kind), gd = isGad(it.kind); p.innerHTML = gd ? (Input.touch ? `보조 ${nm} · ${me.gad ? '교체' : '장착'} 버튼` : me.gad ? `<kbd>T</kbd>보조를 ${nm}(으)로 교체` : `<kbd>T</kbd>보조 ${nm} 장착`) : Input.touch ? `${nm} · 교체 버튼` : `<kbd>T</kbd>${nm}(으)로 교체`; $('tSwap').textContent = gd && !me.gad ? '장착' : '교체'; } }
+      this.gadgetHud(me, dt);
       const tab = !!Input.keys.Tab; if (!Input.touch && L.tab !== tab) { L.tab = tab; $('score').hidden = !tab; } if (!$('score').hidden && (G.frame % 20 === 0 || L.tabDraw !== tab)) { L.tabDraw = tab; this.board($('boardBox'), false); }
       this.minimap(me);
     }
     this.tags();
+  },
+  gadgetHelp(on) {
+    const el = $('gdg'), me = G.me; this.gadT = on ? 7.5 : 0; this.last.gk = null;
+    for (const n of GAD_KEYS) $('tg' + n).hidden = true;
+    if (!on || !me || !me.gad) { el.hidden = true; return; }
+    const g = GADGETS[me.gad], used = GAD_KEYS.filter((n) => g.keys[n]); el.style.setProperty('--gc', rgbToHex(...g.col));
+    for (const n of used) { const b = $('tg' + n); b.hidden = false; b.innerHTML = `${esc(g.keys[n][2] || g.keys[n][0])}<small>${n}</small>`; }
+    const row = (n) => Input.touch ? `<div><kbd>${esc(g.keys[n][0])}</kbd><span class="d">${esc(g.keys[n][1])}</span></div>` : `<div><kbd>${n}</kbd><b>${esc(g.keys[n][0])}</b><span class="d">${esc(g.keys[n][1])}</span></div>`;
+    $('gdgName').textContent = '보조 · ' + g.name; $('gdgKeys').innerHTML = (Input.touch ? '<div class="tip">오른쪽 보조 버튼으로 조작해요</div>' : '') + used.map(row).join('');
+    el.classList.add('big'); el.hidden = false; Snd.play('ui2');
+  },
+  gadgetHud(me, dt) {
+    const el = $('gdg'); if (!me.gs) { if (!el.hidden) el.hidden = true; return; } if (el.hidden) this.gadgetHelp(true);
+    const s = me.gs, g = GADGETS[s.key];
+    if (this.gadT > 0) { this.gadT -= dt; if (this.gadT <= 0) { el.classList.remove('big'); const used = GAD_KEYS.filter((n) => g.keys[n]); $('gdgKeys').innerHTML = used.map((n) => Input.touch ? `<span><b>${esc(g.keys[n][0])}</b></span>` : `<span><kbd>${n}</kbd>${esc(g.keys[n][0])}</span>`).join(''); } }
+    let r;
+    if (s.key === 'wings' || s.key === 'dash') { const mx = Gad.maxCh(s.key); r = '<span class="dots">' + Array.from({ length: mx }, (_, i) => `<i class="${i < s.ch ? 'on' : ''}"></i>`).join('') + '</span>'; }
+    else if (s.key === 'jetpack') r = `<span class="bar"><i style="width:${Math.round(s.fuel * 100)}%"></i></span>`;
+    else if (s.key === 'grapple') r = s.hook ? '<span class="st on">연결됨</span>' : s.cd > 0 ? `<span class="st">${s.cd.toFixed(1)}초</span>` : '<span class="st on">준비</span>';
+    else r = s.cloak > 0 ? `<span class="st on">위장 ${s.cloak.toFixed(1)}초</span>` : s.cd > 0 ? `<span class="st">${Math.ceil(s.cd)}초 후 사용</span>` : '<span class="st on">준비</span>';
+    if (this.last.gk !== r) { this.last.gk = r; $('gdgRes').innerHTML = r; }
   },
   clock(t) { t = Math.max(0, Math.ceil(t)); return `${Math.floor(t / 60)}:${('0' + (t % 60)).slice(-2)}`; },
   lobbyStatus() {
@@ -2710,14 +2911,17 @@ const UI = {
   minimap(me) {
     if (G.frame % 2 || !this.mapImg) return; const x = this.mctx, S = 264 / (ARENA * 2), P = (v) => (v + ARENA) * S;
     x.drawImage(this.mapImg, 0, 0);
-    for (const it of G.match.items) { const c = it.kind === 'grenade' ? GRENADE_COL : WEAPONS[it.kind].col; x.fillStyle = rgbToHex(c[0], c[1], c[2]); x.beginPath(); if (it.kind === 'grenade') x.arc(P(it.x), P(it.z), 4, 0, TAU); else x.rect(P(it.x) - 5, P(it.z) - 5, 10, 10); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#000'; x.stroke(); }
+    const mp = G.map, b = hsv(mp.hue, 0.6, 0.8); x.fillStyle = rgbToHex(Math.min(1, b[0] * 0.6 + 0.4), Math.min(1, b[1] * 0.5 + 0.3), b[2] * 0.3);
+    for (const c of mp.movers) x.fillRect(P(c.x0), P(c.z0), (c.x1 - c.x0) * S, (c.z1 - c.z0) * S);
+    x.fillStyle = '#ffc94d'; for (const q of mp.pads) { x.beginPath(); x.arc(P(q.x), P(q.z), 3.5, 0, TAU); x.fill(); } x.fillStyle = '#8fe8ff'; for (const q of mp.vents) { x.beginPath(); x.arc(P(q.x), P(q.z), 4, 0, TAU); x.fill(); }
+    for (const it of G.match.items) { const c = itemCol(it.kind); x.fillStyle = rgbToHex(c[0], c[1], c[2]); x.beginPath(); if (it.kind === 'grenade') x.arc(P(it.x), P(it.z), 4, 0, TAU); else if (isGad(it.kind)) { const X = P(it.x), Z = P(it.z); x.moveTo(X, Z - 6); x.lineTo(X + 6, Z); x.lineTo(X, Z + 6); x.lineTo(X - 6, Z); x.closePath(); } else x.rect(P(it.x) - 5, P(it.z) - 5, 10, 10); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#000'; x.stroke(); }
     GM.minimap(x, P, me);
     for (const p of G.players) { if (p === me || p.state !== 'live' || p.sinceFire > 1.6 || GM.ally(p, me)) continue; x.fillStyle = GM.teamOf(p) >= 0 ? GM.tcol(p.team) : p.hex1; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.strokeStyle = '#000'; x.stroke(); }
     x.save(); x.translate(P(me.pos[0]), P(me.pos[2])); x.rotate(-me.yaw); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 2; x.beginPath(); x.moveTo(0, 11); x.lineTo(7, -8); x.lineTo(0, -4); x.lineTo(-7, -8); x.closePath(); x.stroke(); x.fill(); x.restore();
   },
   tags() {
     const box = $('tags'), seen = new Set(), me = G.me, v = [0, 0, 0], top = G.screen === 'drop' || G.screen === 'end', end = G.screen === 'end';
-    if (G.frame % 2 === 0 || !this._tagVis) { this._tagVis = new Set(); for (const p of G.tagTargets()) { if (p === me || (p.state !== 'live' && p.state !== 'drop')) continue; if (top) { this._tagVis.add(p); continue; } if (!me || !me.inWorld) continue; if (!end && GM.ally(p, me)) { this._tagVis.add(p); continue; } const d = Math.hypot(p.pos[0] - me.pos[0], p.pos[1] - me.pos[1], p.pos[2] - me.pos[2]); if (d < 55 && G.map.los(R.camPos[0], R.camPos[1], R.camPos[2], p.headPos[0], p.headPos[1], p.headPos[2])) this._tagVis.add(p); } }
+    if (G.frame % 2 === 0 || !this._tagVis) { this._tagVis = new Set(); for (const p of G.tagTargets()) { if (p === me || (p.state !== 'live' && p.state !== 'drop')) continue; if (!top && Gad.cloaked(p) && !(me && GM.ally(p, me))) continue; if (top) { this._tagVis.add(p); continue; } if (!me || !me.inWorld) continue; if (!end && GM.ally(p, me)) { this._tagVis.add(p); continue; } const d = Math.hypot(p.pos[0] - me.pos[0], p.pos[1] - me.pos[1], p.pos[2] - me.pos[2]); if (d < 55 && G.map.los(R.camPos[0], R.camPos[1], R.camPos[2], p.headPos[0], p.headPos[1], p.headPos[2])) this._tagVis.add(p); } }
     for (const p of this._tagVis) {
       if (p.state !== 'live' && p.state !== 'drop') continue; if (!R.toScreen(v, p.headPos[0], p.headPos[1] + (end ? 0.42 : top ? 2 : 0.32), p.headPos[2])) continue;
       let el = this.tagEls.get(p); if (!el) { el = document.createElement('span'); box.appendChild(el); this.tagEls.set(p, el); } seen.add(p);
@@ -3279,6 +3483,190 @@ class Weather {
   }
 }
 
+// ==== 11e_gadgets.js ====
+// ---------- 보조 (gadgets): a second slot beside the gun, worked with I J K L (touch: its own buttons) ----------
+// plus the map's jump pads / updraft vents, which push players around the same way
+const GADGETS = {
+  wings: { id: 1, name: '날개', col: [0.78, 0.9, 1.0], keys: { I: ['날갯짓', '위로 솟구쳐요 · 3번까지, 땅에 있으면 빨리 충전', '날갯짓'], J: ['왼쪽 돌진', '왼쪽으로 휙 날아가요', '◀돌진'], K: ['활공', '누르고 있으면 천천히 떨어지며 앞으로 날아가요', '활공'], L: ['오른쪽 돌진', '오른쪽으로 휙 날아가요', '돌진▶'] } },
+  grapple: { id: 2, name: '그래플러', col: [1.0, 0.72, 0.25], keys: { I: ['발사', '조준점에 갈고리를 걸고 끌려가요 · 한 번 더 누르면 놓기', '발사'], K: ['끊기', '줄을 끊고 그 자리에서 떨어져요', '끊기'] } },
+  jetpack: { id: 3, name: '제트팩', col: [1.0, 0.48, 0.2], keys: { I: ['상승', '누르는 동안 위로 날아요 (연료 소모)', '상승'], J: ['왼쪽 분사', '누르는 동안 왼쪽으로', '◀분사'], K: ['내려찍기', '공중에서 땅을 내려찍어 주변 적에게 피해', '찍기'], L: ['오른쪽 분사', '누르는 동안 오른쪽으로', '분사▶'] } },
+  dash: { id: 4, name: '대시 부츠', col: [0.38, 1.0, 0.72], keys: { I: ['앞 대시', '앞으로 순간 돌진 · 2번까지 충전', '▲대시'], J: ['왼쪽 대시', '왼쪽으로 순간 돌진', '◀대시'], K: ['뒤 대시', '뒤로 순간 돌진', '▼대시'], L: ['오른쪽 대시', '오른쪽으로 순간 돌진', '대시▶'] } },
+  cloak: { id: 5, name: '광학 위장', col: [0.72, 0.55, 1.0], keys: { I: ['위장', '6초 동안 거의 투명해져요 · 쏘거나 던지면 풀려요', '위장'] } },
+};
+for (const k in GADGETS) GADGETS[k].key = k;
+const GAD_LIST = [null, GADGETS.wings, GADGETS.grapple, GADGETS.jetpack, GADGETS.dash, GADGETS.cloak];
+const GAD_KEYS = ['I', 'J', 'K', 'L'];
+const isGad = (kind) => typeof kind === 'string' && kind.slice(0, 2) === 'g_';
+const gadOf = (kind) => GADGETS[kind.slice(2)];
+const itemCol = (kind) => kind === 'grenade' ? GRENADE_COL : isGad(kind) ? gadOf(kind).col : WEAPONS[kind].col;
+const itemName = (kind) => kind === 'grenade' ? '수류탄' : isGad(kind) ? gadOf(kind).name : WEAPONS[kind].name;
+const itemCode = (kind) => kind === 'grenade' ? 9 : isGad(kind) ? 20 + gadOf(kind).id : WEAPONS[kind].id;
+const itemFromCode = (c) => c === 9 ? 'grenade' : c >= 21 && c <= 20 + GAD_LIST.length - 1 ? 'g_' + GAD_LIST[c - 20].key : (WEAPON_LIST[clamp(c | 0, 1, MAX_WID)] || WEAPONS.rifle).key;
+
+// flags (also what other players see): 1 glide · 2 flap · 4 hooked · 8 thrust · 16 cloaked · 32 dash · 64 slam
+const Gad = {
+  M: {},
+  fresh(key) { return { key, ch: this.maxCh(key), chT: 0, fuel: 1, idleT: 0, cd: 0, hook: null, hookT: 0, miss: null, missT: 0, cloak: 0, flapT: 0, dashT: 0, glide: false, thrust: 0, slam: false, f: 0, pf: 0, spread: 0, beat: 0, sndT: 0, holdK: null, holdT: 0 }; },
+  maxCh(k) { return k === 'wings' ? 3 : k === 'dash' ? 2 : 0; },
+  equip(p, key) { p.gad = key; p.gs = this.fresh(key); if (p === G.me) UI.gadgetHelp(true); },
+  clear(p) { p.gad = null; p.gs = null; if (p === G.me) UI.gadgetHelp(false); },
+  flags(p) { const s = p.gs; if (!s) return 0; if (p.kind === 'remote') return s.f; return (s.glide ? 1 : 0) | (s.flapT > 0 ? 2 : 0) | (s.hook ? 4 : 0) | (s.thrust > 0 ? 8 : 0) | (s.cloak > 0 ? 16 : 0) | (s.dashT > 0 ? 32 : 0) | (s.slam ? 64 : 0); },
+  cloaked(p) { return !!(p.gs && (this.flags(p) & 16)); },
+  // ---- per-frame, for players simulated here (me + bots). returns the gravity multiplier
+  update(p, dt) {
+    const s = p.gs; if (!s) return 1; const inp = p.inp, pv = p.prev, k = s.key, v = p.vel;
+    const hit = (n) => !!inp['g' + n] && !pv['g' + n], hold = (n) => !!inp['g' + n];
+    const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw), rx = -fz, rz = fx; // forward, right
+    let gm = 1; s.cd = Math.max(0, s.cd - dt); s.flapT = Math.max(0, s.flapT - dt); s.dashT = Math.max(0, s.dashT - dt); s.missT = Math.max(0, s.missT - dt); s.glide = false; s.thrust = 0;
+    const mx = this.maxCh(k); if (mx && s.ch < mx) { s.chT += dt * (p.grounded ? 1 : 0.5); if (s.chT >= (k === 'wings' ? 1.6 : 1.4)) { s.chT = 0; s.ch++; } } else s.chT = 0;
+    if (k === 'wings') {
+      if (hit('I') && s.ch > 0) { s.ch--; v[1] = Math.max(v[1], 0) * 0.3 + 10.2; v[0] += fx * 1.5; v[2] += fz * 1.5; p.grounded = false; p.padFly = false; s.flapT = 0.42; Snd.play('flap', p.pos, 0.9); this.puff(p, 8, 0); }
+      for (const [n, sg] of [['J', -1], ['L', 1]]) if (hit(n) && s.ch > 0) { s.ch--; v[0] = rx * sg * 11 + v[0] * 0.3; v[2] = rz * sg * 11 + v[2] * 0.3; v[1] = Math.max(v[1], 2.4); p.grounded = false; p.padFly = false; p.dashT = 0.28; s.flapT = 0.3; s.dashT = 0.25; Snd.play('flap', p.pos, 0.8); this.puff(p, 6, sg); }
+      if (hold('K') && !p.grounded && v[1] < 0.5) { s.glide = true; gm = 0.15; p.padFly = false; if (v[1] < -2.4) v[1] = damp(v[1], -2.4, 9, dt); const kk = 1 - Math.exp(-2.2 * dt); v[0] += (fx * 9.5 - v[0]) * kk; v[2] += (fz * 9.5 - v[2]) * kk; p.dashT = Math.max(p.dashT || 0, 0.05); }
+    } else if (k === 'grapple') {
+      if (s.hook) {
+        s.hookT += dt; const h = s.hook, cx = h[0] - p.pos[0], cy = h[1] - (p.pos[1] + 1.1), cz = h[2] - p.pos[2], d = Math.hypot(cx, cy, cz) || 1;
+        if (hit('K') || hit('I') || d < 1.7 || s.hookT > 3.2) this.release(p, d < 2.8);
+        else {
+          const a = 72 * dt; v[0] += cx / d * a; v[1] += cy / d * a; v[2] += cz / d * a; const sp = Math.hypot(v[0], v[1], v[2]); if (sp > 24) { v[0] *= 24 / sp; v[1] *= 24 / sp; v[2] *= 24 / sp; }
+          gm = 0.2; p.padFly = false; p.dashT = Math.max(p.dashT || 0, 0.06); if (cy > 0.3 && v[1] < 1) v[1] = 1; if (v[1] > 0) p.grounded = false;
+        }
+      } else if (hit('I') && s.cd <= 0) this.fire(p);
+    } else if (k === 'jetpack') {
+      let use = false;
+      if (hold('I') && s.fuel > 0) { v[1] = Math.min(v[1] + 44 * dt, 8.5); s.fuel -= 0.38 * dt; use = true; s.thrust = 1; p.padFly = false; }
+      for (const [n, sg] of [['J', -1], ['L', 1]]) if (hold(n) && s.fuel > 0) { const lat = v[0] * rx + v[2] * rz; if (lat * sg < 9) { v[0] += rx * sg * 24 * dt; v[2] += rz * sg * 24 * dt; } if (!p.grounded) v[1] += 9 * dt; s.fuel -= 0.22 * dt; use = true; s.thrust = Math.max(s.thrust, 0.6); p.dashT = Math.max(p.dashT || 0, 0.05); p.padFly = false; }
+      if (hit('K') && !p.grounded && !s.slam && p.pos[1] - G.map.groundY(p.pos[0], p.pos[2], p.pos[1]) > 1.4) { s.slam = true; v[1] = -30; v[0] *= 0.3; v[2] *= 0.3; p.padFly = false; Snd.play('dash', p.pos, 0.9); }
+      if (use) { s.idleT = 0; s.sndT -= dt; if (s.sndT <= 0) { s.sndT = 0.09; Snd.play('jet', p.pos, 0.55); } } else { s.idleT += dt; if (s.idleT > 0.6) s.fuel = Math.min(1, s.fuel + dt * (p.grounded ? 0.45 : 0.16)); }
+      s.fuel = Math.max(0, s.fuel);
+    } else if (k === 'dash') {
+      if (s.dashT <= 0) for (const [n, ax, az] of [['I', fx, fz], ['K', -fx, -fz], ['J', -rx, -rz], ['L', rx, rz]]) if (hit(n) && s.ch > 0) { s.ch--; v[0] = ax * 17; v[2] = az * 17; v[1] = p.grounded ? 2 : Math.max(v[1], 1); p.grounded = false; p.padFly = false; p.dashT = 0.24; s.dashT = 0.24; Snd.play('dash', p.pos, 1); break; }
+    } else if (k === 'cloak') {
+      if (s.cloak > 0) { s.cloak -= dt; if (s.cloak <= 0) this.uncloak(p); }
+      if (hit('I') && s.cd <= 0 && s.cloak <= 0) { s.cloak = 6; s.cd = 16; Snd.play('cloak', p.pos, 0.9); this.puff(p, 14, 0); }
+    }
+    s.f = this.flags(p);
+    return gm;
+  },
+  fire(p) {
+    const s = p.gs, o = [0, 0, 0], d = [0, 0, 0]; let t0 = 0;
+    if (p === G.me) t0 = G.aimRay(o, d) || 0; else { p.aimDir(d); o[0] = p.pos[0]; o[1] = p.eyeY(); o[2] = p.pos[2]; }
+    const sx = o[0] + d[0] * t0, sy = o[1] + d[1] * t0, sz = o[2] + d[2] * t0, R0 = 50;
+    if (G.map.raycast(sx, sy, sz, d[0] || 1e-9, d[1] || 1e-9, d[2] || 1e-9, R0, _RC) && _RC.t > 1.2) {
+      s.hook = [sx + d[0] * (_RC.t - 0.05), sy + d[1] * (_RC.t - 0.05), sz + d[2] * (_RC.t - 0.05)]; s.hookT = 0; Snd.play('hook', p.pos, 1);
+      FX.impact(s.hook[0], s.hook[1], s.hook[2], _RC.nx, _RC.ny, _RC.nz, GADGETS.grapple.col);
+    } else { s.miss = [sx + d[0] * R0, sy + d[1] * R0, sz + d[2] * R0]; s.missT = 0.22; s.cd = 0.5; Snd.play('hookmiss', p.pos, 0.8); }
+  },
+  release(p, pop) { const s = p.gs; s.hook = null; s.cd = 0.7; if (pop) p.vel[1] = Math.max(p.vel[1], 5.5); },
+  uncloak(p) { const s = p.gs; if (!s || s.cloak <= 0) return; s.cloak = 0; s.f &= ~16; Snd.play('cloak', p.pos, 0.6); },
+  onLand(p) { const s = p.gs; if (s && s.slam) this.slam(p); },
+  slam(p) {
+    const s = p.gs; s.slam = false; this.slamFx(p);
+    for (const q of G.players.slice()) {
+      if (q === p || q.state !== 'live' || GM.ally(q, p)) continue; const dx = q.pos[0] - p.pos[0], dz = q.pos[2] - p.pos[2], d = Math.hypot(dx, dz) || 0.01;
+      if (d > 5.2 || Math.abs(q.pos[1] - p.pos[1]) > 2.2) continue;
+      G.dealDamage(q, 25 + 40 * (1 - d / 5.2), p, false, 'melee', [dx / d, 0, dz / d]);
+      if (q.kind !== 'remote' && q.state === 'live') { q.vel[0] += dx / d * 7; q.vel[2] += dz / d * 7; q.vel[1] = 5; q.grounded = false; }
+    }
+    if (p === G.me) G.netEvent('sl');
+  },
+  slamFx(p) { FX.landing(p.pos[0], p.pos[1], p.pos[2], GADGETS.jetpack.col); G.pulse(p.pos[0], p.pos[2], 1.3); Snd.play('slam', p.pos, 1); G.shakeAt(p.pos, 1.0, 26); },
+  puff(p, n, side) {
+    const c = GADGETS[p.gad] ? GADGETS[p.gad].col : [1, 1, 1];
+    for (let i = 0; i < n; i++) FX.spawn({ x: p.pos[0] + rand(-0.4, 0.4), y: p.pos[1] + rand(0.6, 1.6), z: p.pos[2] + rand(-0.4, 0.4), vx: rand(-2, 2) - side * Math.cos(p.yaw) * -3, vy: rand(-2.5, 0.5), vz: rand(-2, 2), life: rand(0.3, 0.6), s0: 0.1, s1: 0.02, c: [c[0] * 2, c[1] * 2, c[2] * 2], drag: 3 });
+  },
+  // other players: sounds when their gadget state flips on
+  remote(p, f) {
+    const s = p.gs, was = s.pf; s.pf = f; const on = (b) => (f & b) && !(was & b);
+    if (on(2)) Snd.play('flap', p.pos, 0.8); if (on(4)) Snd.play('hook', p.pos, 0.9); if (on(32)) Snd.play('dash', p.pos, 0.9); if (on(16) || ((was & 16) && !(f & 16))) Snd.play('cloak', p.pos, 0.6);
+  },
+  // ---- map zones: jump pads and updraft vents (for players simulated here)
+  zones(p, dt) {
+    const m = G.map; if (!m) return; p.padT = Math.max(0, (p.padT || 0) - dt);
+    if (p.padT <= 0) for (const q of m.pads) {
+      if (Math.abs(p.pos[1] - q.y) > 0.4 || Math.hypot(p.pos[0] - q.x, p.pos[2] - q.z) > q.r) continue;
+      p.vel[0] = q.v[0]; p.vel[1] = q.v[1]; p.vel[2] = q.v[2]; p.pos[1] = q.y + 0.05; p.grounded = false; p.padT = 0.7; p.padFly = true; p.padFlyT = 4;
+      if (p.gs && p.gs.hook) this.release(p, false); Snd.play('pad', p.pos, 1); FX.landing(q.x, q.y, q.z, [1.6, 1.3, 0.4]); if (p === G.me) { G.netEvent('pd'); FX.shake = Math.max(FX.shake, 0.25); }
+      break;
+    }
+    for (const q of m.vents) {
+      if (Math.hypot(p.pos[0] - q.x, p.pos[2] - q.z) > q.r || p.pos[1] > q.h) continue;
+      p.vel[1] = Math.min(p.vel[1] + 52 * dt, 10.5); if (p.vel[1] > 0) p.grounded = false; p.padFly = false;
+      if (p.pos[1] > q.lip - 0.4) { p.vel[0] += q.nx * 15 * dt; p.vel[2] += q.nz * 15 * dt; }
+      if (p === G.me && G.frame % 20 === 0) Snd.play('jet', p.pos, 0.35);
+    }
+  },
+  // ---- bots: simple, readable use of whatever they picked up
+  botUse(b, p, dt) {
+    const inp = p.inp; inp.gI = inp.gJ = inp.gK = inp.gL = false; const s = p.gs; if (!s || p.state !== 'live') return;
+    if (s.holdT > 0) { s.holdT -= dt; inp[s.holdK] = true; return; }
+    b.gadT = (b.gadT || 0) - dt; const t = b.target && b.target.state === 'live' ? b.target : null, k = s.key;
+    if (inp.jump && (k === 'wings' || k === 'jetpack') && !p.grounded) { if (k === 'wings') inp.gI = true; else { s.holdK = 'gI'; s.holdT = 0.5; } return; }
+    if (b.gadT > 0) return; b.gadT = 0.3;
+    if (k === 'dash' && t && p.sinceHit < 0.5 && s.ch > 0) { inp[Math.random() < 0.5 ? 'gJ' : 'gL'] = true; b.gadT = 1.4; }
+    else if (k === 'dash' && !t && s.ch > 1 && Math.random() < 0.06) { inp.gI = true; b.gadT = 2; }
+    else if (k === 'wings' && t && s.ch > 1 && Math.random() < 0.18) { inp.gI = true; b.gadT = 1.2; }
+    else if (k === 'jetpack' && t && s.fuel > 0.7 && Math.random() < 0.12) { s.holdK = 'gI'; s.holdT = 0.7; b.gadT = 3; }
+    else if (k === 'cloak' && t && s.cd <= 0 && Math.hypot(t.pos[0] - p.pos[0], t.pos[2] - p.pos[2]) > 10 && Math.random() < 0.2) { inp.gI = true; b.gadT = 3; }
+  },
+  // ---- meshes
+  build() {
+    const M = (list) => R.mesh(boxMeshData(list), [[0, 3], [1, 3], [2, 3]]), W = [0.96, 0.97, 1.0], Wb = [0.82, 0.86, 0.95], D = [0.09, 0.09, 0.11], Gm = [0.3, 0.31, 0.35];
+    const wing = (sg) => { const o = []; for (let i = 0; i < 6; i++) { const x0 = 0.04 + i * 0.19, x1 = x0 + 0.21, top = 0.2 - i * 0.025, bot = -0.16 - i * 0.07; o.push(sg > 0 ? [x0, bot, -0.018, x1, top, 0.018, i & 1 ? Wb : W] : [-x1, bot, -0.018, -x0, top, 0.018, i & 1 ? Wb : W]); } o.push(sg > 0 ? [0, 0.12, -0.03, 1.2, 0.24, 0.03, W] : [-1.2, 0.12, -0.03, 0, 0.24, 0.03, W]); return o; };
+    this.M.wingL = M(wing(1)); this.M.wingR = M(wing(-1));
+    const pack = [[-0.16, -0.22, -0.11, 0.16, 0.2, 0.06, Gm], [-0.12, 0.2, -0.09, 0.12, 0.26, 0.04, D], [-0.15, -0.34, -0.08, -0.05, -0.22, 0.02, D], [0.05, -0.34, -0.08, 0.15, -0.22, 0.02, D], [-0.2, -0.16, -0.07, -0.16, 0.14, 0.03, [0.85, 0.35, 0.12]], [0.16, -0.16, -0.07, 0.2, 0.14, 0.03, [0.85, 0.35, 0.12]]];
+    this.M.pack = M(pack);
+    const launcher = [[-0.05, -0.05, -0.12, 0.05, 0.05, 0.14, Gm], [-0.03, -0.03, 0.14, 0.03, 0.03, 0.22, D], [-0.06, 0.02, 0.18, 0.06, 0.04, 0.24, [0.95, 0.68, 0.2]], [-0.025, -0.1, -0.04, 0.025, -0.05, 0.02, D]];
+    this.M.launcher = M(launcher);
+    this.M.boot = M([[-0.075, -0.075, -0.075, 0.075, 0.075, 0.075, [0.4, 1.0, 0.75]]]);
+    this.M.device = M([[-0.09, -0.09, -0.04, 0.09, 0.09, 0.03, Gm], [-0.05, -0.05, 0.03, 0.05, 0.05, 0.05, [0.75, 0.55, 1.0]]]);
+    this.M.cable = M([[-0.5, -0.5, -0.5, 0.5, 0.5, 0.5, [0.95, 0.75, 0.3]]]);
+    // pickups (shown on the item pads)
+    const S = (list, k) => list.map((b) => [b[0] * k, b[1] * k, b[2] * k, b[3] * k, b[4] * k, b[5] * k, b[6]]);
+    GunMeshes.g_wings = M(S(wing(1), 0.32).concat(S(wing(-1), 0.32)));
+    GunMeshes.g_jetpack = M(S(pack, 0.85));
+    GunMeshes.g_grapple = M(S(launcher, 1.4));
+    GunMeshes.g_dash = M([[-0.06, 0, -0.1, 0.06, 0.16, 0.05, Gm], [-0.065, -0.04, -0.12, 0.065, 0.0, 0.16, D], [-0.07, 0.0, -0.11, 0.07, 0.03, 0.15, [0.38, 1.0, 0.72]], [-0.07, 0.12, -0.11, 0.07, 0.15, 0.06, [0.38, 1.0, 0.72]]]);
+    GunMeshes.g_cloak = M(S([[-0.09, -0.09, -0.04, 0.09, 0.09, 0.03, Gm], [-0.05, -0.05, 0.03, 0.05, 0.05, 0.06, [0.75, 0.55, 1.0]], [-0.11, -0.02, -0.02, 0.11, 0.02, 0.01, [0.75, 0.55, 1.0]]], 1.6));
+  },
+  // ---- what the gadget looks like on a player
+  draw(p, sc) {
+    const s = p.gs; if (!s || p.state === 'out' || p.rd.hidden) return; const f = this.flags(p), me = p === G.me;
+    if ((f & 16) && !me) return; // cloaked: nothing to see
+    const fpv = me && G.fpv, w = p.anim.world, bi = Assets.bi, pool = p._gp || (p._gp = []); let n = 0;
+    const part = (mesh, lx, ly, lz, rots, tint, emis) => {
+      const e = pool[n] || (pool[n] = { mesh: null, model: M4.create(), tint: [1, 1, 1], emis: 0, a: M4.create(), b: M4.create() }); n++;
+      M4.translate(e.a, lx, ly, lz); for (const r of rots || []) { if (r[0] === 'S') M4.scaleM(e.b, r[1], r[1], 1); else M4[r[0]](e.b, r[1]); M4.mul(e.a, e.a, e.b); } M4.mul(e.model, p.model, e.a);
+      e.mesh = mesh; e.emis = emis || 0.05; const t = tint || [1, 1, 1]; e.tint[0] = t[0]; e.tint[1] = t[1]; e.tint[2] = t[2]; sc.props.push(e); return e;
+    };
+    const bone = (name, out) => { const o = bi[name] * 16; out[0] = w[o + 12]; out[1] = w[o + 13]; out[2] = w[o + 14]; return out; };
+    const sp = bone('Spine2', this._v || (this._v = [0, 0, 0])), dt = clamp(G.now - (s.drawT || G.now), 0, 0.05); s.drawT = G.now;
+    if (s.key === 'wings') {
+      const open = (f & 3) || (f & 32) ? 1 : 0; s.spread = damp(s.spread, open, open ? 12 : 5, dt); s.beat += dt * ((f & 2) ? 22 : (f & 1) ? 3 : 1.4);
+      const flap = (f & 2) ? Math.sin(s.beat) * 0.6 : (f & 1) ? Math.sin(s.beat) * 0.06 : Math.sin(s.beat) * 0.03, lift = lerp(-0.55, 0.18, s.spread) + flap, sweep = lerp(1.4, 0.18, s.spread), sz = lerp(0.62, 1, s.spread);
+      if (!fpv) { const c = p.c1, t = [c[0] * 0.5 + 0.75, c[1] * 0.5 + 0.75, c[2] * 0.5 + 0.75]; part(this.M.wingL, sp[0] + 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', sweep], ['rotZ', lift], ['S', sz]], t, 0.25); part(this.M.wingR, sp[0] - 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', -sweep], ['rotZ', -lift], ['S', sz]], t, 0.25); }
+      if ((f & 1) && G.frame % 3 === 0) { const wp = [0, 0, 0]; for (const sg of [-1, 1]) { M4.point(wp, p.model, sg * 1.25, sp[1] + 0.15, sp[2] - 0.3); FX.spawn({ x: wp[0], y: wp[1], z: wp[2], vy: 0.3, life: 0.5, s0: 0.05, s1: 0.0, c: [1.6, 1.8, 2.2], a: 0.6 }); } }
+    } else if (s.key === 'jetpack') {
+      if (!fpv) part(this.M.pack, sp[0], sp[1] - 0.02, sp[2] - 0.2, null, null, 0.1);
+      if (f & 8) { const a = [0, 0, 0]; for (const sg of [-1, 1]) { M4.point(a, p.model, sp[0] + sg * 0.1, sp[1] - 0.38, sp[2] - 0.23); for (let i = 0; i < 2; i++) FX.spawn({ x: a[0], y: a[1], z: a[2], vx: rand(-0.5, 0.5), vy: rand(-7, -4) + p.vel[1] * 0.5, vz: rand(-0.5, 0.5), life: rand(0.12, 0.26), s0: 0.13, s1: 0.03, c: [5, 2.2, 0.5], c1: [1.2, 0.3, 0.1] }); FX.light(a[0], a[1], a[2], 5, [3, 1.4, 0.4], 0.04); } }
+      if (f & 64) FX.frameQuads.push({ beam: true, ax: p.pos[0], ay: p.pos[1] + 2.6, az: p.pos[2], bx: p.pos[0], by: p.pos[1] + 0.3, bz: p.pos[2], w: 0.35, c: [3, 1.4, 0.4], a: 0.8 });
+    } else if (s.key === 'grapple') {
+      const hp = bone('Hips', [0, 0, 0]); if (!fpv) part(this.M.launcher, hp[0] + 0.19, hp[1] + 0.02, hp[2] + 0.02, null, null, 0.1);
+      const end = s.hook || (s.missT > 0 ? s.miss : null);
+      if (end) {
+        const a = [0, 0, 0]; if (me && G.eyeOK) { a[0] = G.eyeBase[0] - Math.cos(p.yaw) * 0.25; a[1] = G.eyeBase[1] - 0.35; a[2] = G.eyeBase[2] + Math.sin(p.yaw) * 0.25; } else { const lh = bone('LeftHand', [0, 0, 0]); M4.point(a, p.model, lh[0], lh[1], lh[2]); }
+        FX.frameQuads.push({ beam: true, ax: a[0], ay: a[1], az: a[2], bx: end[0], by: end[1], bz: end[2], w: 0.025, c: [2.2, 1.6, 0.6], a: 1 });
+        if (s.hook) FX.frameQuads.push({ x: end[0], y: end[1], z: end[2], s: 0.3, c: [3, 2, 0.6], a: 1, kind: 0 });
+      }
+    } else if (s.key === 'dash') {
+      if (!fpv) for (const b of ['LeftFoot', 'RightFoot']) { const ft = bone(b, [0, 0, 0]); part(this.M.boot, ft[0], ft[1] - 0.02, ft[2], null, null, (f & 32) ? 1.5 : 0.7); }
+      if (f & 32) for (let i = 0; i < 3; i++) FX.spawn({ x: p.pos[0] + rand(-0.3, 0.3), y: p.pos[1] + rand(0.1, 1.6), z: p.pos[2] + rand(-0.3, 0.3), vx: -p.vel[0] * 0.2, vz: -p.vel[2] * 0.2, life: 0.25, s0: 0.12, s1: 0.02, c: [0.8, 2.6, 1.6] });
+    } else if (s.key === 'cloak') {
+      if (!fpv) part(this.M.device, sp[0], sp[1] + 0.02, sp[2] - 0.17, null, null, (f & 16) ? 1.2 : 0.5);
+    }
+  },
+};
+
 // ==== 12_game.js ====
 // ---------- game flow, match rules, camera, main loop ----------
 const ROUND_TIME = 300;
@@ -3297,7 +3685,7 @@ const G = {
       const st = store.get('gdm.settings', null); if (st && typeof st === 'object') { for (const k of ['sens', 'zsens', 'tsens', 'xcol', 'vol', 'mus', 'sfx', 'quality']) if (typeof st[k] === 'number' && isFinite(st[k])) this.settings[k] = st[k]; this.settings.swapFire = st.v2 ? st.swapFire !== false : true; this.settings.view = st.view === 'tps' || st.view === 'fps' ? st.view : DEFAULT_VIEW; if (!(this.settings.sens > 0 && this.settings.sens <= 10)) this.settings.sens = 1; if (!st.v3 && Math.abs(this.settings.sens - 0.4) < 1e-6) this.settings.sens = 1; this.settings.xcol = clamp(this.settings.xcol | 0, 0, 6); this.autoQ = false; }
       this.settings.quality = clamp(this.settings.quality | 0, 0, 2);
       GM.load(); this.setQ(); R.init($('gl')); loadAssets();
-      const m = Assets.mesh; this.charMesh = R.charMesh(m.pos, m.nrm, m.ski, m.skw, m.idx); buildGunMeshes(); computeGunOffset(); COS.build(); R.armMask = new Float32Array(NBONES); Assets.bones.forEach((b, i) => { if (/(Arm|Hand)/.test(b.name)) R.armMask[i] = 1; });
+      const m = Assets.mesh; this.charMesh = R.charMesh(m.pos, m.nrm, m.ski, m.skw, m.idx); buildGunMeshes(); computeGunOffset(); COS.build(); Gad.build(); R.armMask = new Float32Array(NBONES); Assets.bones.forEach((b, i) => { if (/(Arm|Hand)/.test(b.name)) R.armMask[i] = 1; });
       this.sc.cam = this.cam; this.applyAudio(); UI.init(); Input.init();
       this.newStage(); this.toTitle(); $('loading').hidden = true;
       let last = performance.now(); const loop = (t) => { const dt = Math.min(0.05, Math.max(0.001, (t - last) / 1000)); this.perf(t - last); last = t; try { this.tick(dt); } catch (e) { console.error(e); if (!this._err) { this._err = 1; } } requestAnimationFrame(loop); };
@@ -3368,14 +3756,14 @@ const G = {
     if (this.map && this.map.seed === (seed >>> 0) && this.mapMesh) return;
     if (this.mapMesh) this.mapMesh.free(); this.map = new GameMap(seed); this.mapMesh = this.map.buildMesh(); UI.buildMinimap(); FX.reset();
   },
-  resetRound() { const m = this.match; m.items = []; m.grenades = []; m.rockets = []; m.time = ROUND_TIME; m.wT = 9; m.gT = rand(6, 10); m.taken.clear(); m.lastSec = -1; this.nearItem = null; $('feed').innerHTML = ''; UI.feedItems = []; },
+  resetRound() { const m = this.match; m.items = []; m.grenades = []; m.rockets = []; m.time = ROUND_TIME; m.wT = 9; m.adT = 6; m.gT = rand(6, 10); m.taken.clear(); m.lastSec = -1; this.nearItem = null; $('feed').innerHTML = ''; UI.feedItems = []; },
   startLocal() {
     const m = this.match, seed = (Math.random() * 4294967295) >>> 0; m.gm = GM.pick; this.loadMap(seed); this.resetRound(); m.seed = seed; m.state = 'play'; m.rid++;
     this.me.kills = this.me.assists = this.me.deaths = 0; this.me.state = 'out'; this.players = [this.me]; this.bots = [];
     const names = BOT_NAMES.slice().sort(() => Math.random() - 0.5);
     for (let i = 0; i < 9; i++) { const s = randomSkin(), p = new Player('bot', names[i], s[0], s[1]); p.rd.mesh = this.charMesh; p.cos = COS.random(); this.players.push(p); const b = new Bot(p); p.bot = b; this.bots.push(b); }
     GM.onRoundStart(); GM.setupLocal();
-    if (!GM.noGuns()) for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade');
+    if (!GM.noGuns()) for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade'); for (let i = 0; i < 2; i++) this.spawnItem(this.randGadget());
   },
   enterDrop() { this.screen = 'drop'; UI.show('scrDrop'); Input.unlock(); this.dropHover = null; Snd.intensity = 0.5; this.nearItem = null; },
   dropPoint(px, py, out) {
@@ -3390,12 +3778,13 @@ const G = {
   dropAt(p) {
     const me = this.me; p = GM.spawnNear(me, p); me.yaw = Math.atan2(-p[0], -p[2]); me.pitch = -0.55; me.spawnDrop(p[0], p[2]); me.hide = false;
     this.screen = 'play'; UI.show(null); Input.resetPlay(); Input.lock(); this.camDist = 7; this.camKick = 0; Snd.intensity = 0.8; UI.last = {}; Net.push(true);
-    if (this._bannerRid !== this.match.rid) { this._bannerRid = this.match.rid; const d = GM.def(); UI.banner(d.name, 2.2); UI.feed(`<b>${d.name}</b><i>${esc(d.desc)}</i>`); UI.feed(`<b>맵</b><i>${this.map.kindName} · ${(WEATHERS.find((w) => w.id === this.map.weather) || WEATHERS[0]).name}</i>`); if (GM.teamed() && me.team >= 0) { const q = GM.partner(me); UI.toast(GM.id === 'chain' ? `${GM.tname(me.team)} · 파트너 ${q ? q.name : ''}` : `나는 ${TEAM_NAME[me.team]} 팀`, GM.tcol(me.team)); } }
+    if (this._bannerRid !== this.match.rid) { this._bannerRid = this.match.rid; const d = GM.def(); UI.banner(d.name, 2.2); UI.feed(`<b>${d.name}</b><i>${esc(d.desc)}</i>`); UI.feed(`<b>맵</b><i>${this.map.kindName} · ${(WEATHERS.find((w) => w.id === this.map.weather) || WEATHERS[0]).name}</i>`); if (this.map.gimName) UI.feed(`<b>기믹 · ${this.map.gimName}</b><i>${this.map.gimDesc}</i>`); if (GM.teamed() && me.team >= 0) { const q = GM.partner(me); UI.toast(GM.id === 'chain' ? `${GM.tname(me.team)} · 파트너 ${q ? q.name : ''}` : `나는 ${TEAM_NAME[me.team]} 팀`, GM.tcol(me.team)); } }
   },
   // ---------- rules
   randWeapon() { const have = this.match.items.map((i) => i.kind), powerOut = have.some((k) => POWER.includes(k)) || this.players.some((p) => p.state === 'live' && p.weapon.power);
     if (!powerOut && Math.random() < POWER_CHANCE) return POWER[Math.floor(Math.random() * POWER.length)];
     const c = SPAWNABLE.filter((k) => !have.includes(k)); return c[Math.floor(Math.random() * c.length)] || 'rifle'; },
+  randGadget() { const have = this.match.items.map((i) => i.kind), c = Object.keys(GADGETS).map((k) => 'g_' + k).filter((k) => !have.includes(k)); return c[Math.floor(Math.random() * c.length)] || 'g_wings'; },
   spawnItem(kind) {
     const m = this.match, p = [0, 0, 0]; let ok = false;
     for (let t = 0; t < 40 && !ok; t++) { this.map.randomSpot(null, p, kind !== 'grenade' && t < 25); ok = true; for (const i of m.items) if (Math.hypot(i.x - p[0], i.z - p[2]) < 14) ok = false; if (Math.abs(p[0]) > ARENA - 4 || Math.abs(p[2]) > ARENA - 4) ok = false; }
@@ -3414,17 +3803,18 @@ const G = {
       else if (m.state === 'end') { m.endT -= dt; if (m.endT <= 0) { if (n >= 2) this.hostStartRound(); else { m.state = 'wait'; m.hn++; } } }
     }
     if (m.state !== 'play') return;
-    const guns = m.items.filter((i) => i.kind !== 'grenade').length;
+    const guns = m.items.filter((i) => i.kind !== 'grenade' && !isGad(i.kind)).length, gads = m.items.filter((i) => isGad(i.kind)).length, nades = m.items.length - guns - gads;
     if (guns < 2 && !GM.noGuns()) { m.wT -= dt; if (m.wT <= 0) { this.spawnItem(this.randWeapon()); m.wT = 9; } } else m.wT = 9;
-    m.gT -= dt; if (m.gT <= 0) { if (m.items.length - guns < 4) this.spawnItem('grenade'); m.gT = rand(9, 15); }
+    if (gads < 2) { m.adT -= dt; if (m.adT <= 0) { this.spawnItem(this.randGadget()); m.adT = 11; } } else m.adT = 11;
+    m.gT -= dt; if (m.gT <= 0) { if (nades < 4) this.spawnItem('grenade'); m.gT = rand(9, 15); }
   },
   hostStartRound() {
     const m = this.match; m.rid++; m.seed = (Math.random() * 4294967295) >>> 0; m.gm = GM.hostVote(); this.onRoundStart(m.seed); GM.hostTeams(true); m.state = 'play'; m.hn++;
-    if (!GM.noGuns()) for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade'); Net.push(true);
+    if (!GM.noGuns()) for (let i = 0; i < 2; i++) this.spawnItem(this.randWeapon()); for (let i = 0; i < 2; i++) this.spawnItem('grenade'); for (let i = 0; i < 2; i++) this.spawnItem(this.randGadget()); Net.push(true);
   },
   onRoundStart(seed) { this.loadMap(seed); this.resetRound(); const me = this.me; if (me) { me.kills = me.assists = me.deaths = 0; if (me.inWorld) { me.state = 'out'; if (this.screen === 'play' || this.screen === 'dead' || this.screen === 'drop') this.toLobby(); } } for (const p of this.players) if (p.kind === 'remote') p.kills = p.assists = p.deaths = 0; GM.onRoundStart(); if (this.mode === 'online') UI.feed(`이번 판 · <b>${GM.def().name}</b>`); },
   becomeHost(H) { const m = this.match; if (m.state === 'idle') m.state = 'wait'; m.hn += 5; },
-  hostBlock() { const m = this.match, r = (v) => Math.round(v * 10) / 10; const h = { r: m.rid, st: m.state === 'play' ? 'p' : m.state === 'end' ? 'e' : 'w', seed: m.seed, rem: r(m.time), n: m.hn, it: m.items.map((i) => [i.id, i.kind === 'grenade' ? 9 : WEAPONS[i.kind].id, r(i.x), r(i.y), r(i.z)]) }; GM.hostBlock(h); return h; },
+  hostBlock() { const m = this.match, r = (v) => Math.round(v * 10) / 10; const h = { r: m.rid, st: m.state === 'play' ? 'p' : m.state === 'end' ? 'e' : 'w', seed: m.seed, rem: r(m.time), n: m.hn, it: m.items.map((i) => [i.id, itemCode(i.kind), r(i.x), r(i.y), r(i.z)]) }; GM.hostBlock(h); return h; },
   onHostState(h) {
     const m = this.match, st = h.st === 'p' ? 'play' : h.st === 'e' ? 'end' : 'wait', rid = Net.num(h.r, 0, 1e9, 0) | 0, seed = Net.num(h.seed, 0, 4294967295, 1) >>> 0;
     const gm = MODES[Net.num(h.gm, 0, MODES.length - 1, 0) | 0].id; if (st === 'play' && (m.rid !== rid || m.state !== 'play')) m.gm = gm; else if (st !== 'play' && m.state !== 'play') m.gm = gm;
@@ -3433,7 +3823,7 @@ const G = {
     if (was === 'play' && st !== 'play') this.endRound();
     const out = [], list = Array.isArray(h.it) ? h.it.slice(0, 12) : [];
     for (const a of list) {
-      if (!Array.isArray(a)) continue; const id = Net.num(a[0], 0, 1e9, 0) | 0; if (m.taken.has(id)) continue; const kind = a[1] === 9 ? 'grenade' : (WEAPON_LIST[Net.num(a[1], 1, MAX_WID, 2) | 0] || WEAPONS.rifle).key;
+      if (!Array.isArray(a)) continue; const id = Net.num(a[0], 0, 1e9, 0) | 0; if (m.taken.has(id)) continue; const kind = itemFromCode(Net.num(a[1], 1, 40, 2) | 0);
       const old = m.items.find((i) => i.id === id); if (!old && POWER.includes(kind)) this.announce(kind); out.push(old || { id, kind, x: Net.num(a[2], -ARENA, ARENA, 0), y: Net.num(a[3], -3, 40, 0), z: Net.num(a[4], -ARENA, ARENA, 0), t: 0, model: M4.create(), pad: M4.create() });
     }
     m.items = out; GM.onHostState(h);
@@ -3444,6 +3834,7 @@ const G = {
     const m = this.match, i = m.items.indexOf(item); if (i < 0) return; m.items.splice(i, 1); m.hn++;
     if (this.mode === 'online' && !Net.isHost) { m.taken.add(item.id); Net.event('pk', item.id); } else if (this.mode === 'online') Net.event('pk', item.id);
     if (item.kind === 'grenade') { p.grenades = Math.min(GRENADE_MAX, p.grenades + 1); Snd.play('grenadeget', [item.x, item.y, item.z], p === this.me ? 1 : 0.6); FX.pickup(item.x, item.y + 0.3, item.z, GRENADE_COL); if (p === this.me) UI.toast('수류탄 +1', '#9dff7a'); }
+    else if (isGad(item.kind)) { const g = gadOf(item.kind); Gad.equip(p, g.key); Snd.play('pickup', [item.x, item.y, item.z], p === this.me ? 1 : 0.6); FX.pickup(item.x, item.y + 0.3, item.z, g.col); if (p === this.me) UI.toast('보조 · ' + g.name + ' 장착', rgbToHex(...g.col)); }
     else { p.setWeapon(item.kind); p.clearActions && p.clearActions(); p.reloadT = 0; p.swapAnim(); Snd.play('pickup', [item.x, item.y, item.z], p === this.me ? 1 : 0.6); FX.pickup(item.x, item.y + 0.3, item.z, WEAPONS[item.kind].col); if (p === this.me) UI.toast(WEAPONS[item.kind].name + ' 획득', rgbToHex(...WEAPONS[item.kind].col)); }
     if (this.nearItem === item) this.nearItem = null;
   },
@@ -3628,6 +4019,7 @@ const G = {
     if (sim) {
       if (this.mode === 'local' || Net.isHost) this.authority(dt); else if (m.state === 'play') m.time = Math.max(0, m.time - dt);
     }
+    if (this.map) { const target = m.state === 'play' ? ROUND_TIME - m.time : this.now; let c = this.mclock === undefined ? target : this.mclock + dt; if (Math.abs(target - c) > 0.6) c = target; else c += (target - c) * Math.min(1, dt * 2); this.mclock = c; this.map.updateMovers(c); }
     if (sim && (this.screen === 'drop' || this.screen === 'play' || this.screen === 'dead')) {
       if (me.inWorld) { if (this.screen === 'play') Input.apply(me, dt); else { const i = me.inp; i.f = i.s = 0; i.fire = i.aim = i.jump = i.sprint = i.reload = i.grenade = i.swap = i.melee = false; } me.update(dt); }
       for (const b of this.bots) { b.update(dt); b.p.update(dt); }
@@ -3680,8 +4072,24 @@ const G = {
     M4.lookAt(this.view, c.eye, c.target, c.up);
     Snd.L.x = c.eye[0]; Snd.L.y = c.eye[1]; Snd.L.z = c.eye[2]; Snd.L.rx = this.view[0]; Snd.L.rz = this.view[8];
   },
+  // moving blocks (own meshes, slid by an offset), jump pads, updraft columns
+  drawGimmicks(sc, top) {
+    const map = this.map; sc.movers = sc.movers || []; sc.movers.length = 0;
+    for (const c of map.movers) { if (!c.mesh) c.mesh = map.buildMesh([Object.assign({}, c.mv.b, { ramp: -1, shade: c.shade })]); const m = c.mv; const e = c._rd || (c._rd = { mesh: c.mesh, off: [0, 0, 0], model: M4.create() }); e.off[0] = m.ox; e.off[1] = m.oy; e.off[2] = m.oz; M4.translate(e.model, m.ox, m.oy, m.oz); sc.movers.push(e); }
+    const t = this.now, k = top ? 2.5 : 1;
+    for (const q of map.pads) {
+      const e = q._rd || (q._rd = { mesh: GunMeshes.pad, model: M4.create(), tint: [1, 1, 1], emis: 1 }); M4.yawPos(e.model, 0, q.x, q.y, q.z, 2.1); const pulse = 0.5 + 0.5 * Math.sin(t * 5 + q.x);
+      e.tint[0] = 1.6; e.tint[1] = 1.2 + pulse * 0.3; e.tint[2] = 0.35; sc.props.push(e);
+      const ph = (t * 1.4 + q.z * 0.1) % 1; FX.frameQuads.push({ flat: true, x: q.x, y: q.y + 0.12, z: q.z, s: (0.6 + ph * 1.6) * k, c: [4, 2.8, 0.6], a: 1 - ph, kind: 3 });
+      const l = Math.hypot(q.v[0], q.v[1], q.v[2]) || 1; FX.frameQuads.push({ beam: true, ax: q.x, ay: q.y + 0.15, az: q.z, bx: q.x + q.v[0] / l * 2.2, by: q.y + 0.15 + q.v[1] / l * 2.2, bz: q.z + q.v[2] / l * 2.2, w: 0.12 * k, c: [3, 2.2, 0.5], a: 0.5 + pulse * 0.4 });
+    }
+    for (const q of map.vents) {
+      const ph = (t * 0.9) % 1; FX.frameQuads.push({ flat: true, x: q.x, y: 0.1, z: q.z, s: q.r * (0.7 + ph * 0.5) * (top ? 1.6 : 1), c: [0.9, 2.2, 2.6], a: 1 - ph, kind: 3 }, { beam: true, ax: q.x, ay: 0.1, az: q.z, bx: q.x, by: q.h, bz: q.z, w: q.r * 0.8, c: [0.35, 0.8, 0.95], a: 0.22 });
+      if (this.frame % 2 === 0) FX.spawn({ x: q.x + rand(-q.r, q.r) * 0.8, y: rand(0.2, 1.5), z: q.z + rand(-q.r, q.r) * 0.8, vy: rand(6, 10), life: rand(0.5, 1.0), s0: 0.06, s1: 0.02, c: [1.2, 2.4, 2.8], a: 0.8, stretch: 0.05 });
+    }
+  },
   render() {
-    const sc = this.sc, stage = this.screen === 'title' || this.screen === 'lobby' || this.screen === 'end' || !this.map, cam = this.cam; sc.chars.length = 0; sc.props.length = 0;
+    const sc = this.sc, stage = this.screen === 'title' || this.screen === 'lobby' || this.screen === 'end' || !this.map, cam = this.cam; sc.chars.length = 0; sc.props.length = 0; if (sc.movers) sc.movers.length = 0;
     const map = stage ? this.stage.map : this.map; if (this._theme !== map) { this._theme = map; map.applyTheme(); map.wx = map.wx || new Weather(map.weather, map.seed); map.wx.applyEnv(); this.weather = map.wx; }
     sc.vm = null;
     if (stage) {
@@ -3692,13 +4100,14 @@ const G = {
       if (top) { sc.shadowFocus[0] = 0; sc.shadowFocus[1] = 0; sc.shadowFocus[2] = 0; sc.shadowRadius = ARENA * 1.5; } else { const d = 16; sc.shadowFocus[0] = cam.eye[0] + (cam.target[0] - cam.eye[0]) * d; sc.shadowFocus[1] = Math.min(cam.eye[1], 6); sc.shadowFocus[2] = cam.eye[2] + (cam.target[2] - cam.eye[2]) * d; sc.shadowRadius = 46; }
       for (const p of this.players) {
         if (p === this.me && this.eyeOK && this.fpv && (p.state === 'live' || p.state === 'drop')) { p.rd.noShadow = false; p.rd.hidden = true; sc.chars.push(p.rd); continue; }
-        if (p.state === 'out' || p.rd.hidden) continue; sc.chars.push(p.rd); COS.draw(p, sc); if (p.gunVisible()) sc.props.push(p.gun);
+        if (p.state === 'out' || p.rd.hidden) { if (p === this.me && p.gs) Gad.draw(p, sc); continue; } sc.chars.push(p.rd); COS.draw(p, sc); if (p.gunVisible()) sc.props.push(p.gun); if (p.gs) Gad.draw(p, sc);
       }
+      this.drawGimmicks(sc, top);
       sc.vm = this.eyeOK && this.fpv && !this.scoped && (this.me.state === 'live' || this.me.state === 'drop') ? this.viewModel() : null;
       const T = this._m1 || (this._m1 = M4.create()), S = this._m2 || (this._m2 = M4.create());
       for (const i of this.match.items) {
-        const g = i.kind === 'grenade', col = g ? GRENADE_COL : WEAPONS[i.kind].col, bob = Math.sin(i.t * 2.2) * 0.12, sc2 = g ? 2.4 : POWER.includes(i.kind) ? 1.5 : 1.9;
-        M4.yawPos(i.model, i.t * 1.6, i.x, i.y + 1.05 + bob, i.z, sc2); if (!g) { M4.rotX(T, -0.25); M4.mul(i.model, i.model, T); M4.translate(S, 0, 0, -0.2); M4.mul(i.model, i.model, S); }
+        const g = i.kind === 'grenade', gd = isGad(i.kind), col = itemCol(i.kind), bob = Math.sin(i.t * 2.2) * 0.12, sc2 = g ? 2.4 : gd ? 1.7 : POWER.includes(i.kind) ? 1.5 : 1.9;
+        M4.yawPos(i.model, i.t * 1.6, i.x, i.y + 1.05 + bob, i.z, sc2); if (!g && !gd) { M4.rotX(T, -0.25); M4.mul(i.model, i.model, T); M4.translate(S, 0, 0, -0.2); M4.mul(i.model, i.model, S); }
         M4.yawPos(i.pad, 0, i.x, i.y, i.z, 1);
         sc.props.push({ mesh: GunMeshes[g ? 'grenade' : i.kind], model: i.model, tint: [1.4, 1.4, 1.4], emis: 0.9 }, { mesh: GunMeshes.pad, model: i.pad, tint: col, emis: 0.8 + Math.sin(i.t * 4) * 0.4 });
         const a = 0.45 + Math.sin(i.t * 3) * 0.15, k = top ? 5 : 1, pw = POWER.includes(i.kind);

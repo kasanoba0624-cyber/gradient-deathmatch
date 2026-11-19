@@ -746,6 +746,7 @@ const R = {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   },
   // generic mesh: layout = [[loc, size, type?, normalized?], ...] interleaved floats unless type given
+  updateMesh(m, data) { const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, m.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, data); },
   mesh(data, layout, idx) {
     const gl = this.gl, vao = gl.createVertexArray(), buf = gl.createBuffer();
     gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
@@ -1073,7 +1074,7 @@ class GameMap {
     const rng = this.rng = mulberry32(this.seed * 2654435761 >>> 0);
     this.hue = THEMES[Math.floor(rng() * THEMES.length)] + (rng() - 0.5) * 0.03;
     this.sunAz = rng() * TAU; this.sunEl = 0.62 + rng() * 0.35;
-    this.gen(rng); this.buildNav();
+    this.gen(rng); this.buildNav(); this.weather = Weather.pick(rng);
   }
   box(x0, y0, z0, x1, y1, z1, shade) { const c = { x0: Math.min(x0, x1), y0, z0: Math.min(z0, z1), x1: Math.max(x0, x1), y1, z1: Math.max(z0, z1), ramp: -1, shade: shade || 1 }; this.cols.push(c); return c; }
   gen(rng) {
@@ -1459,6 +1460,7 @@ const FX = {
       this._beamQuad(D, b.ax + b.dx * tl, b.ay + b.dy * tl, b.az + b.dz * tl, b.ax + b.dx * h, b.ay + b.dy * h, b.az + b.dz * h, b.w, cam, b.c[0], b.c[1], b.c[2], 1, 2);
     }
     for (const q of this.frameQuads) {
+      const D = q.ab ? A : this.D; // ab: alpha-blended (weather), otherwise additive glow
       if (q.beam) this._beamQuad(D, q.ax, q.ay, q.az, q.bx, q.by, q.bz, q.w, cam, q.c[0], q.c[1], q.c[2], q.a, 2);
       else if (q.flat) this._q(D, q.x - q.s, q.y, q.z - q.s, q.x + q.s, q.y, q.z - q.s, q.x + q.s, q.y, q.z + q.s, q.x - q.s, q.y, q.z + q.s, q.c[0], q.c[1], q.c[2], q.a, q.kind);
       else this._q(D, q.x - (rx + ux) * q.s, q.y - (ry + uy) * q.s, q.z - (rz + uz) * q.s, q.x + (rx - ux) * q.s, q.y + (ry - uy) * q.s, q.z + (rz - uz) * q.s,
@@ -1650,6 +1652,7 @@ const Snd = {
       case 'jump': this.nz(d, t, 0.12, 'bandpass', 500, 1400, 1, 0.25, 0.04); break;
       case 'land': this.nz(d, t, 0.16, 'lowpass', 700, 120, 0.7, 0.9); this.tone(d, t, 0.14, 'sine', 110, 40, 0.8); break;
       case 'slam': this.nz(d, t, 0.6, 'lowpass', 1800, 90, 0.5, 1.5); this.tone(d, t, 0.5, 'sine', 90, 26, 1.6); this.tone(d, t, 0.35, 'triangle', 420, 80, 0.4); wet(0.7); break;
+      case 'thunder': this.nz(d, t, 2.6, 'lowpass', 900, 60, 0.5, 2.0); this.nz(d, t + 0.05, 0.25, 'bandpass', 1800, 300, 0.4, 0.6); this.tone(d, t, 1.8, 'sine', 52, 30, 0.9); wet(1.0); break;
       case 'explosion': this.nz(d, t, 1.1, 'lowpass', 2600, 70, 0.4, 2.2); this.tone(d, t, 0.8, 'sine', 85, 22, 2.0); this.nz(d, t, 0.08, 'highpass', 2500, 0, 0.7, 1.0); this.nz(d, t + 0.1, 1.4, 'bandpass', 300, 120, 0.6, 0.6, 0.2); wet(1.0); break;
       case 'bounce': this.tone(d, t, 0.06, 'triangle', 1500 * r, 900, 0.3); this.nz(d, t, 0.03, 'highpass', 4000, 0, 1, 0.25); break;
       case 'throw': this.nz(d, t, 0.2, 'bandpass', 600, 2000, 1.2, 0.35, 0.08); break;
@@ -1671,6 +1674,13 @@ const Snd = {
       case 'lose': [440, 392, 330, 262].forEach((f, i) => this.tone(d, t + i * 0.16, 0.6, 'triangle', f, f * 0.97, 0.3)); wet(0.8); break;
       case 'barrier': this.tone(d, t, 0.25, 'sine', 240, 180, 0.25); this.tone(d, t, 0.25, 'sine', 363, 270, 0.15); break;
     }
+  },
+  // ----- weather ambience loop (rain hiss / storm rumble / sand howl), purely cosmetic
+  weather(id, on) {
+    const c = this.ctx; if (!c || !this.noise) return;
+    if (!this._wx) { const s = c.createBufferSource(); s.buffer = this.noise; s.loop = true; const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.5; const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); g.connect(this.sfx); s.start(); this._wx = { f, g }; }
+    const cfg = { rain: [2600, 0.11], storm: [1700, 0.16], snow: [500, 0.025], sand: [700, 0.13], mist: [400, 0.02] }[id] || [500, 0];
+    this._wx.f.frequency.setTargetAtTime(cfg[0], c.currentTime, 0.3); this._wx.g.gain.setTargetAtTime(on ? cfg[1] : 0, c.currentTime, 0.4);
   },
   // ----- wind loop for sky-drop
   wind(v) {
@@ -1990,7 +2000,7 @@ class Bot {
     if (p.state === 'dead' || p.state === 'out') {
       if (G.match.state !== 'play') return;
       this.respawnT -= dt;
-      if (this.respawnT <= 0 && (p.state === 'out' || p.deadT > 2.2)) { const s = map.randomSpot(null, [0, 0, 0]); p.yaw = rand(TAU); p.spawnDrop(s[0], s[2]); this.target = null; this.goal = null; this.path = null; this.respawnT = rand(2.5, 4.5); }
+      if (this.respawnT <= 0 && (p.state === 'out' || p.deadT > 2.2)) { const s = GM.spawnNear(p, map.randomSpot(null, [0, 0, 0])); p.yaw = rand(TAU); p.spawnDrop(s[0], s[2]); this.target = null; this.goal = null; this.path = null; this.respawnT = rand(2.5, 4.5); }
       return;
     }
     if (p.state === 'drop') return;
@@ -2550,12 +2560,12 @@ const UI = {
   name(p) { const c = rgbToHex(...hexToRgb(p.hex1)); return `<b style="color:${c}">${esc(p.name)}</b>`; },
   ranked() { const key = (p) => G.mode === 'online' ? String(p.net || Net.me || '') : ('000000' + p.id).slice(-6); return G.players.slice().sort((a, b) => GM.cmp(a, b) || (key(a) < key(b) ? -1 : 1)); },
   board(el, final) {
-    const gid = final ? G.results.gid : GM.id, sl = { gem: '보석', koth: '점수', jug: '점수' }[gid] || '', tdm = gid === 'tdm';
+    const gid = final ? G.results.gid : GM.id, sl = { gem: '보석', koth: '점수', jug: '점수', chain: '팀 킬' }[gid] || '', tdm = gid === 'tdm';
     const list = final ? G.results.list : this.ranked().map((p) => ({ p, name: p.name, c1: p.hex1, c2: p.hex2, k: p.kills, a: p.assists, d: p.deaths, me: p === G.me, bot: p.kind === 'bot', team: GM.teamOf(p), stat: GM.statText(p) }));
-    const win = Math.floor(list.length / 2), isWin = (r, i) => final ? r.win : tdm ? false : i < win;
+    const win = Math.floor(list.length / 2), isWin = (r, i) => final ? r.win : tdm || gid === 'chain' ? false : i < win;
     let head = '';
     if (tdm) { const a = final ? G.results.ts[0] : GM.teamScore(0), b = final ? G.results.ts[1] : GM.teamScore(1); head = `<div class="tscore"><span class="tm r">${TEAM_NAME[0]} ${a}</span><span class="vs">:</span><span class="tm b">${b} ${TEAM_NAME[1]}</span></div>`; }
-    el.innerHTML = `<h3>${final ? '최종 순위' : '순위표'} <small>${GM.def(gid).name}</small></h3>${head}<table><thead><tr><th>#</th><th>이름</th>${sl ? `<th>${sl}</th>` : ''}<th>킬</th><th>어시</th><th>데스</th></tr></thead><tbody>` + list.map((r, i) => `<tr class="${r.me ? 'me ' : ''}${isWin(r, i) ? 'win' : ''}"${r.team >= 0 ? ` style="box-shadow:inset 3px 0 0 ${TEAM_COL[r.team]}"` : ''}><td>${i + 1}</td><td><span class="dot" style="background:linear-gradient(180deg,${r.c1},${r.c2})"></span>${esc(r.name)}${r.bot ? '<em>AI</em>' : ''}${r.me ? '<em>나</em>' : ''}${r.team >= 0 ? `<em style="color:${TEAM_COL[r.team]}">${TEAM_NAME[r.team]}</em>` : ''}</td>${sl ? `<td><b>${r.stat}</b></td>` : ''}<td>${r.k}</td><td>${r.a}</td><td>${r.d}</td></tr>`).join('') + '</tbody></table>';
+    el.innerHTML = `<h3>${final ? '최종 순위' : '순위표'} <small>${GM.def(gid).name}</small></h3>${head}<table><thead><tr><th>#</th><th>이름</th>${sl ? `<th>${sl}</th>` : ''}<th>킬</th><th>어시</th><th>데스</th></tr></thead><tbody>` + list.map((r, i) => `<tr class="${r.me ? 'me ' : ''}${isWin(r, i) ? 'win' : ''}"${r.team >= 0 ? ` style="box-shadow:inset 3px 0 0 ${GM.tcol(r.team, gid)}"` : ''}><td>${i + 1}</td><td><span class="dot" style="background:linear-gradient(180deg,${r.c1},${r.c2})"></span>${esc(r.name)}${r.bot ? '<em>AI</em>' : ''}${r.me ? '<em>나</em>' : ''}${r.team >= 0 ? `<em style="color:${GM.tcol(r.team, gid)}">${GM.tname(r.team, gid)}</em>` : ''}</td>${sl ? `<td><b>${r.stat}</b></td>` : ''}<td>${r.k}</td><td>${r.a}</td><td>${r.d}</td></tr>`).join('') + '</tbody></table>';
   },
   buildMinimap() {
     const c = this.mapImg = document.createElement('canvas'); c.width = c.height = 264; const x = c.getContext('2d'), S = 264 / (ARENA * 2), b = hsv(G.map.hue, 0.6, 0.8);
@@ -2572,7 +2582,7 @@ const UI = {
     if (this.dmgT > 0) { this.dmgT -= dt; $('dmgdir').firstElementChild.style.opacity = clamp(this.dmgT / 0.6, 0, 1); }
     const m = G.match, me = G.me;
     if (G.screen === 'lobby') this.lobbyStatus();
-    if (G.screen === 'drop') set('dropInfo', m.state === 'play' ? `${GM.def().name} · ${G.map ? G.map.kindName + ' · ' : ''}남은 시간 ${this.clock(m.time)}` + (GM.id === 'tdm' && me && me.team >= 0 ? ` · 나는 ${TEAM_NAME[me.team]} 팀` : '') : '');
+    if (G.screen === 'drop') set('dropInfo', m.state === 'play' ? `${GM.def().name} · ${G.map ? G.map.kindName + ' · ' + (WEATHERS.find((w) => w.id === G.map.weather) || WEATHERS[0]).name + ' · ' : ''}남은 시간 ${this.clock(m.time)}` + (GM.teamed() && me && me.team >= 0 ? ` · ${GM.id === 'chain' ? GM.tname(me.team) + ' (파트너 근처에 착지)' : '나는 ' + TEAM_NAME[me.team] + ' 팀'}` : '') : '');
     if ($('hud').hidden) return;
     if (G.screen === 'end') { this.tags(); return; }
     set('tClock', this.clock(m.time)); const hot = m.state === 'play' && m.time <= 30; if (L.hot !== hot) { L.hot = hot; $('timer').classList.toggle('hot', hot); }
@@ -2606,7 +2616,7 @@ const UI = {
         else if (Net.status === 'denied') { t = '<b>이 기기는 온라인 방에 들어갈 수 없어요.</b> Claude 페이지의 온라인은 링크 주인이 공유 메뉴에서 <b>이 사람의 Claude 계정을 초대</b>하고, 그 계정으로 로그인해서 열어야 들어가져요. 공개 링크로만 들어오면 막혀요.'; ok = false; }
         else { t = '온라인 연결이 끊겼어요. 모드 선택으로 나갔다가 다시 들어와 주세요.'; ok = false; }
       }
-      else { const n = Net.count(); if (m.state === 'play') t = `접속자 <b>${n}명</b> · <b>${GM.def().name}</b> 진행 중 (남은 시간 ${this.clock(m.time)})`; else if (m.state === 'end') { t = `접속자 <b>${n}명</b> · 다음 판 준비 중…`; ok = false; } else { t = `접속자 <b>${n}명</b> · 한 명 더 들어오면 시작해요` + (WEB_BUILD ? '' : Net.mq ? `<br><small>공용 서버에 연결됐어요 (${Net.room && Net.room.brokers ? Net.room.brokers() : 1}곳) · 친구도 ${window.claude ? '이 링크' : '이 파일'}만 열고 온라인을 누르면 바로 들어와요</small>` : `<br><small>연결 확인: 이 링크를 연 화면 <b>${Net.raw || 1}개</b>${Net.guests ? ` (초대 손님 ${Net.guests})` : ''}${Net.perr ? ` · 전송 오류 ${Net.perr}` : ''}</small>`); ok = false; } }
+      else { const n = Net.count(); if (m.state === 'play' && GM.waiting()) { t = `접속자 <b>${n}명</b> · <b>더블 체인</b> 진행 중 · <b>짝이 없어 대기 중</b>이에요. 새 접속자가 오면 바로 함께 들어가요.`; ok = false; } else if (m.state === 'play') t = `접속자 <b>${n}명</b> · <b>${GM.def().name}</b> 진행 중 (남은 시간 ${this.clock(m.time)})`; else if (m.state === 'end') { t = `접속자 <b>${n}명</b> · 다음 판 준비 중…`; ok = false; } else { t = `접속자 <b>${n}명</b> · 한 명 더 들어오면 시작해요` + (WEB_BUILD ? '' : Net.mq ? `<br><small>공용 서버에 연결됐어요 (${Net.room && Net.room.brokers ? Net.room.brokers() : 1}곳) · 친구도 ${window.claude ? '이 링크' : '이 파일'}만 열고 온라인을 누르면 바로 들어와요</small>` : `<br><small>연결 확인: 이 링크를 연 화면 <b>${Net.raw || 1}개</b>${Net.guests ? ` (초대 손님 ${Net.guests})` : ''}${Net.perr ? ` · 전송 오류 ${Net.perr}` : ''}</small>`); ok = false; } }
     } else t = GM.pick === 'tdm' ? 'AI 9명 참가 · 나 + AI 4명 vs AI 5명' : 'AI 9명이 랜덤 스킨으로 참가합니다';
     if (G.frame % 15 === 0 || this.last.mp !== GM.pick) this.modeChips();
     if (this.last.ls !== t) { this.last.ls = t; $('netStat').innerHTML = t; } const b = $('bReady'); if (b.disabled !== !ok) b.disabled = !ok; if (this.last.rl !== label) { this.last.rl = label; b.textContent = label; }
@@ -2614,7 +2624,7 @@ const UI = {
   modeChips() {
     const box = $('modePick'); if (!box) return; const online = G.mode === 'online', v = online && Net.on ? GM.votes() : null;
     if (!box.children.length) MODES.forEach((md) => { const b = document.createElement('button'); b.dataset.m = md.id; b.innerHTML = `<b>${md.name}</b><small></small>`; b.onclick = () => { Snd.play('ui'); GM.setPick(md.id); this.modeChips(); }; box.appendChild(b); });
-    for (const b of box.children) { const i = GM.idx(b.dataset.m); b.setAttribute('aria-pressed', String(b.dataset.m === GM.pick)); const s = v && v[i] ? `${v[i]}표` : MODES[i].tag; const sm = b.lastElementChild; if (sm.textContent !== s) sm.textContent = s; }
+    for (const b of box.children) { const i = GM.idx(b.dataset.m); b.setAttribute('aria-pressed', String(b.dataset.m === GM.pick)); const s = MODES[i].id === 'chain' && online && Net.count() < CHAIN_MIN ? '4명 이상' : v && v[i] ? `${v[i]}표` : MODES[i].tag; const sm = b.lastElementChild; if (sm.textContent !== s) sm.textContent = s; }
     this.last.mp = GM.pick; const d = GM.def(GM.pick), txt = (online ? '<b>투표</b> · 다음 판은 표를 가장 많이 받은 모드로 시작해요. ' : '') + esc(d.desc); if (this.last.md !== txt) { this.last.md = txt; $('modeDesc').innerHTML = txt; }
   },
   minimap(me) {
@@ -2622,7 +2632,7 @@ const UI = {
     x.drawImage(this.mapImg, 0, 0);
     for (const it of G.match.items) { const c = it.kind === 'grenade' ? GRENADE_COL : WEAPONS[it.kind].col; x.fillStyle = rgbToHex(c[0], c[1], c[2]); x.beginPath(); if (it.kind === 'grenade') x.arc(P(it.x), P(it.z), 4, 0, TAU); else x.rect(P(it.x) - 5, P(it.z) - 5, 10, 10); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#000'; x.stroke(); }
     GM.minimap(x, P, me);
-    for (const p of G.players) { if (p === me || p.state !== 'live' || p.sinceFire > 1.6 || GM.ally(p, me)) continue; x.fillStyle = GM.teamOf(p) >= 0 ? TEAM_COL[p.team] : p.hex1; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.strokeStyle = '#000'; x.stroke(); }
+    for (const p of G.players) { if (p === me || p.state !== 'live' || p.sinceFire > 1.6 || GM.ally(p, me)) continue; x.fillStyle = GM.teamOf(p) >= 0 ? GM.tcol(p.team) : p.hex1; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.strokeStyle = '#000'; x.stroke(); }
     x.save(); x.translate(P(me.pos[0]), P(me.pos[2])); x.rotate(-me.yaw); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 2; x.beginPath(); x.moveTo(0, 11); x.lineTo(7, -8); x.lineTo(0, -4); x.lineTo(-7, -8); x.closePath(); x.stroke(); x.fill(); x.restore();
   },
   tags() {
@@ -2631,7 +2641,7 @@ const UI = {
     for (const p of this._tagVis) {
       if (p.state !== 'live' && p.state !== 'drop') continue; if (!R.toScreen(v, p.headPos[0], p.headPos[1] + (end ? 0.42 : top ? 2 : 0.32), p.headPos[2])) continue;
       let el = this.tagEls.get(p); if (!el) { el = document.createElement('span'); box.appendChild(el); this.tagEls.set(p, el); } seen.add(p);
-      const tg = !end && GM.id === 'gem' && p.gems > 0 ? `${p.name} ◆${p.gems}` : !end && GM.isJug(p) ? `☠ 저거넛 ${p.name}` : p.name, bc = !end && GM.teamOf(p) >= 0 ? TEAM_COL[p.team] : p.hex1;
+      const tg = !end && GM.id === 'gem' && p.gems > 0 ? `${p.name} ◆${p.gems}` : !end && GM.isJug(p) ? `☠ 저거넛 ${p.name}` : p.name, bc = !end && GM.teamOf(p) >= 0 ? GM.tcol(p.team) : p.hex1;
       if (el._n !== tg) { el._n = tg; el.textContent = tg; } if (el._c !== bc) { el._c = bc; el.style.borderColor = bc; el.classList.toggle('ally', !end && !!me && GM.ally(p, me)); }
       el.style.left = v[0].toFixed(1) + 'px'; el.style.top = v[1].toFixed(1) + 'px'; el.style.opacity = top ? 1 : clamp(1.4 - v[2] / 45, 0.35, 1);
     }
@@ -2648,9 +2658,11 @@ const MODES = [
   { id: 'tdm', name: '팀 데스매치', tag: '레드 vs 블루', desc: '팀원과 함께 상대 팀을 처치. 팀 킬 합계 40을 먼저 채우거나, 끝날 때 앞선 팀이 이겨요.' },
   { id: 'gem', name: '젬 컬렉트', tag: '보석 쟁탈', desc: '중앙에 계속 생기는 보석을 모으세요. 죽으면 가진 보석을 전부 떨어뜨려요. 끝날 때 가장 많이 가진 사람이 이겨요.' },
   { id: 'koth', name: '점령전', tag: '킹 오브 더 힐', desc: '빛나는 구역 안에 혼자 서 있으면 1초에 1점. 다른 사람이 들어오면 경합이라 점수가 멈춰요. 구역은 45초마다 옮겨가요.' },
+  { id: 'chain', name: '더블 체인', tag: '2인 1조', desc: '둘씩 짧은 체인으로 묶여 같이 움직여요. 체인으로 묶인 둘이 한 팀이라 서로는 공격이 안 들어가고, 순위는 팀 킬 합계로 매겨요. 온라인은 4명 이상부터, 홀수면 한 명은 새 접속자를 기다려요.' },
   { id: 'jug', name: '저거넛', tag: '괴물 사냥', desc: '한 명이 받는 피해 절반 이하·무한 미니건의 저거넛이 돼요. 저거넛을 쓰러뜨린 사람이 다음 저거넛. 저거넛은 버틸수록(4초 1점)·처치할수록(2점), 나머지는 저거넛을 잡으면(5점) 점수가 커요. 일반 처치 1점.' },
 ];
-const JUG_FIRST = 15, JUG_TAKE = 0.45;
+const JUG_FIRST = 15, JUG_TAKE = 0.45, CHAIN_LEN = 4.2, CHAIN_MIN = 4;
+const CHAIN_COL = Array.from({ length: 12 }, (_, i) => rgbToHex(...hsv((i * 0.381966 + 0.02) % 1, 0.78, 1))), CHAIN_LIN = CHAIN_COL.map((h) => toLin(hexToRgb(h)));
 const TEAM_COL = ['#ff4d5e', '#3d8bff'], TEAM_NAME = ['레드', '블루'], TDM_LIMIT = 40, HILL_R = 5.5, HILL_MOVE = 45, GEM_MAX_CENTER = 14, GEM_MAX = 70;
 const TEAM_LIN = TEAM_COL.map((h) => toLin(hexToRgb(h)));
 
@@ -2661,8 +2673,17 @@ const GM = {
   idx(id) { return Math.max(0, MODES.findIndex((m) => m.id === id)); },
   load() { const v = store.get('gdm.mode', 'ffa'); if (MODES.some((m) => m.id === v)) this.pick = v; },
   setPick(id) { if (!MODES.some((m) => m.id === id)) return; this.pick = id; store.set('gdm.mode', id); if (G.mode === 'online') Net.push(true); },
-  ally(a, b) { return this.id === 'tdm' && a && b && a !== b && a.team >= 0 && a.team === b.team; },
-  teamOf(p) { return this.id === 'tdm' && p && p.team >= 0 ? p.team : -1; },
+  teamed(id) { id = id || this.id; return id === 'tdm' || id === 'chain'; },
+  ally(a, b) { return this.teamed() && a && b && a !== b && a.team >= 0 && a.team === b.team; },
+  teamOf(p) { return this.teamed() && p && p.team >= 0 ? p.team : -1; },
+  tcol(t, id) { return (id || this.id) === 'chain' ? CHAIN_COL[t % CHAIN_COL.length] : TEAM_COL[t] || '#fff'; },
+  tlin(t) { return this.id === 'chain' ? CHAIN_LIN[t % CHAIN_LIN.length] : TEAM_LIN[t] || [1, 1, 1]; },
+  tname(t, id) { return (id || this.id) === 'chain' ? `${t + 1}조` : TEAM_NAME[t]; },
+  partner(p) { if (this.id !== 'chain' || !p || p.team < 0) return null; for (const q of G.players) if (q !== p && q.team === p.team) return q; return null; },
+  // online double chain: no pair for me right now
+  waiting() { return G.mode === 'online' && this.id === 'chain' && G.match.state === 'play' && !!G.me && G.me.team < 0; },
+  teamTotals() { const t = new Map(); for (const p of G.players) if (p.team >= 0) t.set(p.team, (t.get(p.team) || 0) + p.kills); return t; },
+  teamRank(team) { const t = [...this.teamTotals()].sort((a, b) => b[1] - a[1]); return { rank: t.findIndex((e) => e[0] === team) + 1, of: t.length }; },
   teamScore(t) { let s = 0; for (const p of G.players) if (p.team === t) s += p.kills; return s; },
   resetPlayer(p) { p.gems = 0; p.pts = 0; p._jug = false; if (G.mode !== 'online' || p.kind !== 'remote') p.team = -1; },
 
@@ -2682,11 +2703,12 @@ const GM = {
   },
   // local round: give bots their teams
   setupLocal() {
-    if (this.id !== 'tdm') return; G.me.team = 0; let k = 0; for (const b of G.bots) b.p.team = k++ < 4 ? 0 : 1;
+    if (this.id === 'tdm') { G.me.team = 0; let k = 0; for (const b of G.bots) b.p.team = k++ < 4 ? 0 : 1; }
+    if (this.id === 'chain') { G.me.team = 0; let k = 0; for (const b of G.bots) { b.p.team = Math.floor((k + 1) / 2); k++; } }
   },
   // host: teams for everyone online right now (balanced, random)
   hostTeams(fresh) {
-    const m = G.match; if (this.id !== 'tdm') { m.teams = null; return; }
+    const m = G.match; if (this.id === 'chain') return this.hostPairs(fresh); if (this.id !== 'tdm') { m.teams = null; return; }
     if (fresh || !m.teams) m.teams = new Map();
     const ids = [Net.me]; for (const [id, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) ids.push(id);
     const n = [0, 0]; for (const [id, t] of m.teams) { if (ids.includes(id)) n[t]++; else m.teams.delete(id); }
@@ -2694,9 +2716,20 @@ const GM = {
     for (const id of todo) { const t = n[0] < n[1] ? 0 : n[1] < n[0] ? 1 : Math.random() < 0.5 ? 0 : 1; m.teams.set(id, t); n[t]++; }
     this.applyTeams();
   },
+  hostPairs(fresh) {
+    const m = G.match; if (fresh || !m.teams) m.teams = new Map();
+    const ids = [Net.me]; for (const [id, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) ids.push(id);
+    for (const id of [...m.teams.keys()]) if (!ids.includes(id)) m.teams.delete(id);
+    const cnt = new Map(); for (const [, t] of m.teams) cnt.set(t, (cnt.get(t) || 0) + 1);
+    for (const [id, t] of [...m.teams]) if (cnt.get(t) < 2) m.teams.delete(id); // partner left: back to waiting
+    const singles = ids.filter((id) => !m.teams.has(id)); if (fresh) singles.sort(() => Math.random() - 0.5);
+    const used = new Set(m.teams.values()); let t = 0;
+    while (singles.length >= 2) { while (used.has(t)) t++; const a = singles.shift(), b = singles.shift(); m.teams.set(a, t); m.teams.set(b, t); used.add(t); m.hn++; }
+    this.applyTeams();
+  },
   applyTeams() {
     const m = G.match; if (G.mode !== 'online') return;
-    const tm = this.id === 'tdm' && m.teams ? m.teams : null;
+    const tm = this.teamed() && m.teams ? m.teams : null;
     if (G.me) G.me.team = tm && tm.has(Net.me) ? tm.get(Net.me) : -1;
     for (const [id, pe] of Net.peers) if (pe.player) pe.player.team = tm && tm.has(id) ? tm.get(id) : -1;
   },
@@ -2704,6 +2737,7 @@ const GM = {
   hostVote() {
     const c = new Array(MODES.length).fill(0); c[this.idx(this.pick)] += 1.5;
     for (const [, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) { const v = Net.num(pe.pres.gv, 0, MODES.length - 1, 0) | 0; c[v]++; }
+    if (Net.count() < CHAIN_MIN) c[this.idx('chain')] = -1; // double chain needs 4+
     let best = 0; for (let i = 1; i < c.length; i++) if (c[i] > c[best]) best = i; return MODES[best].id;
   },
   votes() { const c = new Array(MODES.length).fill(0); c[this.idx(this.pick)]++; for (const [, pe] of Net.peers) if (pe.pres && pe.pres.v === 1) c[Net.num(pe.pres.gv, 0, MODES.length - 1, 0) | 0]++; return c; },
@@ -2711,6 +2745,11 @@ const GM = {
   // ---------- spawning
   spawnWeapon(p) { if (this.isJug(p)) this.arm(p); },
   noGuns() { return false; },
+  // land next to a living partner (double chain), otherwise wherever the player picked
+  spawnNear(p, pick) {
+    const q = this.partner(p); if (!q || (q.state !== 'live' && q.state !== 'drop')) return pick;
+    const a = rand(TAU), c = this.openGround ? null : null; const out = [q.pos[0] + Math.cos(a) * 1.6, 0, q.pos[2] + Math.sin(a) * 1.6]; const i = G.map.nearestOk(G.map.cellOf(out[0], out[2])); if (i >= 0) G.map.cellPos(i, out); return out;
+  },
   // ---------- juggernaut
   keyOf(p) { if (!p) return ''; if (G.mode === 'online') return p === G.me ? Net.me : p.net || ''; return 'L' + p.id; },
   jugP() { const k = G.match.jug; if (this.id !== 'jug' || !k) return null; for (const p of G.players) if (this.keyOf(p) === k) return p; return null; },
@@ -2725,6 +2764,7 @@ const GM = {
     const m = G.match;
     if (this.id === 'gem') { m.gemT -= dt; if (m.gemT <= 0) { m.gemT = 4.5; let c = 0; for (const g of m.gems) if (g.c) c++; if (c < GEM_MAX_CENTER && m.gems.length < GEM_MAX) this.addGem(this.center[0] + rand(-2.2, 2.2), this.center[2] + rand(-2.2, 2.2), true); } }
     if (this.id === 'koth') { m.hillT -= dt; if (m.hillT <= 0 || !m.hill) this.moveHill(); }
+    if (this.id === 'chain' && G.mode === 'online' && Net.count() < CHAIN_MIN) return true;
     if (this.id === 'tdm' && (this.teamScore(0) >= TDM_LIMIT || this.teamScore(1) >= TDM_LIMIT)) return true;
     if (this.id === 'jug') {
       const j = this.jugP();
@@ -2760,6 +2800,7 @@ const GM = {
     const m = G.match, me = G.me, id = this.id;
     if (G.mode === 'online' && G.frame % 10 === 0) this.applyTeams();
     if (m.state !== 'play') return;
+    if (id === 'chain') this.chainUpdate(dt);
     if (id === 'gem') {
       for (let k = m.gems.length - 1; k >= 0; k--) {
         const g = m.gems[k]; g.t += dt;
@@ -2771,6 +2812,24 @@ const GM = {
       if (G.mode === 'online' && !Net.isHost) m.hillT = Math.max(0, m.hillT - dt);
       const inside = this.inHill(); this.hillState = inside;
       if (inside.length === 1 && inside[0].kind !== 'remote') inside[0].pts = (inside[0].pts || 0) + dt;
+    }
+  },
+  // the tether: past CHAIN_LEN each end is pulled back toward the other (each client moves only its own players)
+  chainUpdate(dt) {
+    const me = G.me;
+    if (this.waiting() && me && (G.screen === 'play' || G.screen === 'drop' || G.screen === 'dead')) { me.state = 'out'; G.toLobby(); UI.toast('짝이 없어 대기해요 · 새 접속자가 오면 함께 들어가요', '#ffd36b'); }
+    for (const p of G.players) {
+      if (p.kind === 'remote' || p.state !== 'live') continue; const q = this.partner(p); if (!q || q.state !== 'live') continue;
+      const dx = q.pos[0] - p.pos[0], dy = q.pos[1] - p.pos[1], dz = q.pos[2] - p.pos[2], d = Math.hypot(dx, dy, dz) || 1e-4;
+      if (d <= CHAIN_LEN) { p.chainOverT = 0; p.chainTaut = 0; continue; }
+      const ux = dx / d, uy = dy / d, uz = dz / d, ex = d - CHAIN_LEN, away = -(p.vel[0] * ux + p.vel[1] * uy + p.vel[2] * uz);
+      if (away > 0) { p.vel[0] += ux * away; p.vel[2] += uz * away; if (uy > 0.3) p.vel[1] += uy * away; }
+      p.vel[0] += ux * ex * 14 * dt; p.vel[2] += uz * ex * 14 * dt;
+      const k = Math.min(ex * 0.5, 0.6); p.pos[0] += ux * k; p.pos[2] += uz * k; if (uy > 0.4 && !p.grounded) p.pos[1] += uy * k; G.map.collide(p.pos, P_RADIUS, P_HEIGHT);
+      p.chainTaut = ex;
+      // snagged (a wall between them, or landed far apart): the chain yanks this end over to the partner
+      p.chainOverT = ex > 1.2 ? (p.chainOverT || 0) + dt : 0;
+      if (p.chainOverT > 0.45) { const o = [q.pos[0] - ux * 1.5, 0, q.pos[2] - uz * 1.5], i = G.map.nearestOk(G.map.cellOf(o[0], o[2])); if (i >= 0) { G.map.cellPos(i, o); p.pos[0] = o[0]; p.pos[1] = o[1]; p.pos[2] = o[2]; p.vel[0] = p.vel[2] = 0; p.vel[1] = 2; p.chainOverT = 0; FX.landing(o[0], o[1], o[2], p.c1); if (p === G.me) UI.toast('체인에 끌려왔어요', '#ffd36b'); } }
     }
   },
   jugUpkeep(dt) {
@@ -2805,14 +2864,14 @@ const GM = {
   // ---------- online plumbing
   hostBlock(h) {
     const m = G.match, r = (v) => Math.round(v * 10) / 10; h.gm = this.idx(this.id);
-    if (this.id === 'tdm' && m.teams) h.tm = [...m.teams];
+    if (this.teamed() && m.teams) h.tm = [...m.teams];
     if (this.id === 'gem') h.gs = m.gems.slice(0, GEM_MAX).map((g) => [g.id, r(g.x), r(g.y), r(g.z), g.c ? 1 : 0]);
     if (this.id === 'koth' && m.hill) h.kh = [r(m.hill[0]), r(m.hill[1]), r(m.hill[2]), r(m.hillT)];
     if (this.id === 'jug') { h.jg = m.jug || ''; h.jt = r(m.jugT); }
   },
   onHostState(h) {
     const m = G.match;
-    if (Array.isArray(h.tm)) { const t = new Map(); for (const a of h.tm.slice(0, 64)) if (Array.isArray(a) && typeof a[0] === 'string' && (a[1] === 0 || a[1] === 1)) t.set(a[0].slice(0, 40), a[1]); m.teams = t; } else m.teams = null;
+    if (Array.isArray(h.tm)) { const t = new Map(); for (const a of h.tm.slice(0, 64)) if (Array.isArray(a) && typeof a[0] === 'string' && Number.isInteger(a[1]) && a[1] >= 0 && a[1] < 64) t.set(a[0].slice(0, 40), a[1]); m.teams = t; } else m.teams = null;
     if (this.id === 'gem' && Array.isArray(h.gs)) {
       const out = []; for (const a of h.gs.slice(0, GEM_MAX)) { if (!Array.isArray(a)) continue; const id = Net.num(a[0], 0, 1e9, 0) | 0; if (m.gtaken.has(id)) continue; const old = m.gems.find((g) => g.id === id); out.push(old || { id, x: Net.num(a[1], -ARENA, ARENA, 0), y: Net.num(a[2], -3, 40, 0), z: Net.num(a[3], -ARENA, ARENA, 0), c: !!a[4], t: 0, model: M4.create() }); }
       m.gems = out;
@@ -2832,9 +2891,9 @@ const GM = {
   applyPresence(pl, pr) { pl.gems = Net.num(pr.gc, 0, 999, 0) | 0; pl.pts = Net.num(pr.pt, 0, 9999, 0) | 0; },
 
   // ---------- ranking + labels
-  score(p) { const id = this.id; return id === 'gem' ? p.gems | 0 : id === 'koth' || id === 'jug' ? Math.floor(p.pts || 0) : p.kills; },
-  statLabel() { return { gem: '보석', koth: '점수', jug: '점수' }[this.id] || ''; },
-  statText(p) { return String(this.score(p)); },
+  score(p) { const id = this.id; if (id === 'chain') return p.team >= 0 ? (this.teamTotals().get(p.team) || 0) : -1; return id === 'gem' ? p.gems | 0 : id === 'koth' || id === 'jug' ? Math.floor(p.pts || 0) : p.kills; },
+  statLabel() { return { gem: '보석', koth: '점수', jug: '점수', chain: '팀 킬' }[this.id] || ''; },
+  statText(p) { const v = this.score(p); return v < 0 ? '대기' : String(v); },
   cmp(a, b) { return this.score(b) - this.score(a) || b.kills - a.kills || b.assists - a.assists || a.deaths - b.deaths; },
   winTeam() { const a = this.teamScore(0), b = this.teamScore(1); return a > b ? 0 : b > a ? 1 : -1; },
 
@@ -2847,6 +2906,7 @@ const GM = {
       const s = this.hillState || [], st = !m.hill ? '' : s.length === 0 ? '비어 있음' : s.length > 1 ? '<b class="warn">경합 중</b>' : s[0] === me ? '<b class="ok">점령 중 +1/초</b>' : `${esc(s[0].name)} 점령 중`;
       return `<span class="pt">${me ? Math.floor(me.pts || 0) : 0}점</span><small>${st} · 이동 ${UI.clock(m.hillT || 0)}${lead((p) => Math.floor(p.pts || 0) + '점')}</small>`;
     }
+    if (id === 'chain') { if (!me || me.team < 0) return '<small>짝을 기다리는 중</small>'; const q = this.partner(me), tr = this.teamRank(me.team), tk = this.teamTotals().get(me.team) || 0, taut = me.chainTaut > 0.05; return `<span class="tm" style="color:${this.tcol(me.team)}">${this.tname(me.team)} · 팀 킬 ${tk}</span><small>파트너 ${q ? esc(q.name) : '-'}${q && q.state !== 'live' ? '(부활 대기)' : ''} · 팀 순위 ${tr.rank}/${tr.of}${taut ? ' · <b class="warn">체인이 팽팽해요</b>' : ''}</small>`; }
     if (id === 'jug') { const j = this.jugP(), st = !m.jug ? `저거넛 등장까지 ${Math.ceil(m.jugT || 0)}초` : j === me ? '<b class="warn">내가 저거넛! 버티세요</b>' : j ? `저거넛: <b>${esc(j.name)}</b> · 잡으면 +5` : '저거넛 교체 중'; return `<span class="pt">${me ? Math.floor(me.pts || 0) : 0}점</span><small>${st}${lead((p) => Math.floor(p.pts || 0) + '점')}</small>`; }
     return '';
   },
@@ -2871,19 +2931,42 @@ const GM = {
       FX.light(h[0], h[1] + 1.5, h[2], 9, [col[0] * 0.5, col[1] * 0.5, col[2] * 0.5], 0.03);
     }
     if (id === 'jug') { const j = this.jugP(); if (j && j.state === 'live') { const x = j.pos[0], y = j.visY, z = j.pos[2]; if (!(j === G.me && G.fpv)) FX.frameQuads.push({ x: j.headPos[0], y: j.headPos[1] + 0.2, z: j.headPos[2], s: 2.4 * k, c: [4, 0.9, 0.3], a: 0.5, kind: 0 }); FX.frameQuads.push({ flat: true, x, y: y + 0.06, z, s: 1.4 * k, c: [4, 0.8, 0.3], a: 0.9, kind: 3 }, { beam: true, ax: x, ay: y + 2.2, az: z, bx: x, by: y + 30, bz: z, w: 0.3 * k, c: [4, 0.8, 0.3], a: 0.25 }); FX.light(x, y + 1.4, z, 6, [2, 0.4, 0.1], 0.03); } }
-    if (id === 'tdm') for (const p of G.players) if ((p.state === 'live' || p.state === 'drop') && p.team >= 0 && !(p === G.me && G.fpv)) { const c = TEAM_LIN[p.team]; FX.frameQuads.push({ flat: true, x: p.pos[0], y: p.visY + 0.06, z: p.pos[2], s: 0.75 * k, c: [c[0] * 2.2, c[1] * 2.2, c[2] * 2.2], a: 0.9, kind: 3 }); }
+    if (id === 'chain') this.drawChains(sc);
+    if (this.teamed()) for (const p of G.players) if ((p.state === 'live' || p.state === 'drop') && p.team >= 0 && !(p === G.me && G.fpv)) { const c = this.tlin(p.team); FX.frameQuads.push({ flat: true, x: p.pos[0], y: p.visY + 0.06, z: p.pos[2], s: 0.75 * k, c: [c[0] * 2.2, c[1] * 2.2, c[2] * 2.2], a: 0.9, kind: 3 }); }
+  },
+  drawChains(sc) {
+    if (!this.link) { const S = [0.22, 0.23, 0.27]; this.link = R.mesh(boxMeshData([[-0.05, -0.02, -0.06, 0.05, 0.02, 0.06, S]]), [[0, 3], [1, 3], [2, 3]]); this.pool = []; }
+    let n = 0; const hb = Assets.bi.Hips * 16, A = [0, 0, 0], B = [0, 0, 0];
+    for (const p of G.players) {
+      const q = this.partner(p); if (!q || p.id > q.id || p.state !== 'live' || q.state !== 'live' || p.rd.hidden || q.rd.hidden) continue;
+      M4.point(A, p.model, p.anim.world[hb + 12], p.anim.world[hb + 13], p.anim.world[hb + 14]); M4.point(B, q.model, q.anim.world[hb + 12], q.anim.world[hb + 13], q.anim.world[hb + 14]);
+      const d = Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]), sag = Math.max(0, CHAIN_LEN + 0.3 - d) * 0.45, N = Math.max(6, Math.round(d / 0.11)), taut = d > CHAIN_LEN - 0.1;
+      let px = A[0], py = A[1], pz = A[2];
+      for (let i = 1; i <= N; i++) {
+        const t = i / N, x = A[0] + (B[0] - A[0]) * t, y = A[1] + (B[1] - A[1]) * t - Math.sin(t * Math.PI) * sag, z = A[2] + (B[2] - A[2]) * t;
+        let ux = x - px, uy = y - py, uz = z - pz; const ul = Math.hypot(ux, uy, uz) || 1e-4; ux /= ul; uy /= ul; uz /= ul;
+        let sx = -uz, sy = 0, sz = ux; { const l = Math.hypot(sx, sz) || 1; sx /= l; sz /= l; } let wx = uy * sz - uz * sy, wy = uz * sx - ux * sz, wz = ux * sy - uy * sx;
+        if (i & 1) { const tx = sx, ty = sy, tz = sz; sx = wx; sy = wy; sz = wz; wx = tx; wy = ty; wz = tz; }
+        const e = this.pool[n] || (this.pool[n] = { mesh: this.link, model: M4.create(), tint: [1, 1, 1], emis: 0.1 }); n++;
+        const m = e.model, L = ul * 1.15 / 0.12; m[0] = sx; m[1] = sy; m[2] = sz; m[4] = wx; m[5] = wy; m[6] = wz; m[8] = ux * L; m[9] = uy * L; m[10] = uz * L; m[12] = (x + px) / 2; m[13] = (y + py) / 2; m[14] = (z + pz) / 2; m[15] = 1;
+        const c = taut ? [1.6, 0.6, 0.5] : [1, 1, 1]; e.tint[0] = c[0]; e.tint[1] = c[1]; e.tint[2] = c[2]; e.emis = taut ? 0.4 : 0.1; sc.props.push(e);
+        px = x; py = y; pz = z;
+      }
+    }
   },
   minimap(x, P, me) {
     const m = G.match, id = this.id, S = 264 / (ARENA * 2);
     if (id === 'koth' && m.hill) { x.beginPath(); x.arc(P(m.hill[0]), P(m.hill[2]), HILL_R * S, 0, TAU); x.fillStyle = 'rgba(255,225,77,0.28)'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#ffe14d'; x.stroke(); }
     if (id === 'gem') { for (const g of m.gems) { x.fillStyle = '#8fe3ff'; x.fillRect(P(g.x) - 2.5, P(g.z) - 2.5, 5, 5); } }
     if (id === 'jug') { const j = this.jugP(); if (j && j !== me && j.state === 'live') { x.fillStyle = '#ff5a3c'; x.beginPath(); x.arc(P(j.pos[0]), P(j.pos[2]), 7, 0, TAU); x.fill(); x.lineWidth = 2; x.strokeStyle = '#fff'; x.stroke(); } }
-    if (id === 'tdm' && me) for (const p of G.players) if (p !== me && p.state === 'live' && this.ally(p, me)) { x.fillStyle = TEAM_COL[p.team]; x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#fff'; x.stroke(); }
+    if (this.teamed() && me) for (const p of G.players) if (p !== me && p.state === 'live' && this.ally(p, me)) { x.fillStyle = this.tcol(p.team); x.beginPath(); x.arc(P(p.pos[0]), P(p.pos[2]), 5, 0, TAU); x.fill(); x.lineWidth = 1.5; x.strokeStyle = '#fff'; x.stroke(); }
   },
   botBias(q) { return this.isJug(q) ? 14 : 0; },
+  partnerPull(p, far) { const q = this.partner(p); if (!q || q.state !== 'live') return null; const d = Math.hypot(q.pos[0] - p.pos[0], q.pos[2] - p.pos[2]); return d > far ? q : null; },
   // objective a fighting bot keeps drifting toward ([x, z] or null)
   botPull(p) {
     const m = G.match, id = this.id;
+    if (id === 'chain') { const q = this.partnerPull(p, 3.2); return q ? [q.pos[0], q.pos[2]] : null; }
     if (id === 'gem') { let best = null, bd = 12; for (const g of m.gems) { const d = Math.hypot(g.x - p.pos[0], g.z - p.pos[2]); if (d < bd && Math.abs(g.y - p.pos[1]) < 1.6) { bd = d; best = g; } } return best ? [best.x, best.z] : null; }
     if (id === 'koth' && m.hill) { const d = Math.hypot(m.hill[0] - p.pos[0], m.hill[2] - p.pos[2]); if (d > HILL_R * 0.6 && d < 30 && Math.abs(m.hill[1] - p.pos[1]) < 2) return [m.hill[0], m.hill[2]]; }
     return null;
@@ -2891,6 +2974,7 @@ const GM = {
   // where an idle bot should head (null: the usual wandering)
   botGoal(p) {
     const m = G.match, id = this.id;
+    if (id === 'chain') { const q = this.partnerPull(p, 2.5); if (q) return [q.pos[0], q.pos[1], q.pos[2]]; }
     if (id === 'gem') { let best = null, bd = 1e9; for (const g of m.gems) { const d = Math.hypot(g.x - p.pos[0], g.z - p.pos[2]); if (d < bd) { bd = d; best = g; } } if (best && Math.random() < 0.9) return [best.x, best.y, best.z]; return this.center && Math.random() < 0.6 ? this.center.slice() : null; }
     if (id === 'koth' && m.hill && Math.random() < 0.8) { const a = rand(TAU), r = rand(HILL_R * 0.6); return [m.hill[0] + Math.cos(a) * r, m.hill[1], m.hill[2] + Math.sin(a) * r]; }
     return null;
@@ -2908,7 +2992,25 @@ const COS_SLOTS = [
 const COS = {
   parts: {}, // item key -> [{ mesh, bone, tint: 'c1'|'c2'|null, emis, sway }]
   validate(a) { const o = [0, 0, 0, 0]; if (Array.isArray(a)) for (let i = 0; i < 4; i++) o[i] = clamp((a[i] | 0), 0, COS_SLOTS[i].items.length - 1); return o; },
-  random() { return COS_SLOTS.map((s, i) => Math.random() < (i < 2 ? 0.55 : 0.7) ? 1 + Math.floor(Math.random() * (s.items.length - 1)) : 0); },
+  // AI (and the 랜덤 button) dress in a matching outfit: a theme, each slot picked from that theme's options
+  // slots: face [0 없음 1 하키 2 일루미나티 3 선글라스 4 방독면 5 스마일 6 닌자] neck [0 없음 1 스카프 2 망토 3 금목걸이 4 넥타이]
+  //        top [0 기본 1 줄무늬 2 체크 3 정장 4 군복 5 후드티 6 갑옷] bottom [0 기본 1 청바지 2 군복 3 정장 4 운동복 5 반바지]
+  THEMES: [
+    [[0, 3], [4], [3], [3]],          // 회사원
+    [[3], [0, 4], [3], [3]],          // 요원
+    [[4, 0], [0, 1], [4], [2]],       // 군인
+    [[6], [1, 0], [5], [2, 3]],       // 닌자
+    [[0, 1], [2], [6], [3, 2]],       // 기사
+    [[0, 3], [2], [0, 5], [4]],       // 히어로
+    [[0, 3], [0, 1], [1, 2], [1, 5]], // 캐주얼
+    [[3, 0], [3], [5], [1, 4]],       // 힙합
+    [[5], [1, 0], [5, 1], [4, 5]],    // 장난꾸러기
+    [[2], [2], [3], [3]],             // 비밀결사
+    [[1], [0], [2], [1]],             // 하키 마스크 괴한
+    [[0, 3], [0], [1], [4, 5]],       // 운동선수
+    [[4], [0], [5, 4], [4, 2]],       // 방역 요원
+  ],
+  random() { if (Math.random() < 0.1) return [0, 0, 0, 0]; const t = this.THEMES[Math.floor(Math.random() * this.THEMES.length)]; return t.map((o) => o[Math.floor(Math.random() * o.length)]); },
   // which body region each bone paints: 0 thigh, 1 shin, 2 torso, 3 upper arm, 4 forearm, 5 hand, 6 head/neck, 7 foot
   regions() {
     const m = new Float32Array(NBONES);
@@ -2935,9 +3037,9 @@ const COS = {
     { const Kn = [0.035, 0.035, 0.045]; P.face6 = [{ bone: H, mesh: M([[-0.088, -0.005, -0.06, 0.088, 0.088, 0.108, Kn], [-0.09, 0.088, -0.07, 0.09, 0.098, 0.104, Kn], [-0.092, 0.142, -0.085, 0.092, 0.2, 0.1, Kn]]) }, { bone: H, mesh: M([[-0.094, 0.15, -0.09, 0.094, 0.17, 0.104, W], [-0.025, 0.12, -0.16, 0.02, 0.165, -0.085, W], [0.0, 0.08, -0.2, 0.04, 0.13, -0.15, W]]), tint: 'c1' }]; }
     // neck: scarf ring + tail (tinted), cape (two panels: chest-attached top, hip-attached skirt that swings), gold chain, tie
     P.neck1 = [{ bone: Nk, mesh: M([[-0.085, 0.0, -0.075, 0.085, 0.075, 0.085, W], [-0.07, -0.25, -0.1, -0.01, 0.02, -0.075, W], [0.02, -0.08, 0.075, 0.07, 0.03, 0.1, W]]), tint: 'c1' }];
-    P.neck2 = [{ bone: S2, mesh: M([[-0.13, 0.13, -0.115, 0.13, 0.2, -0.1, W], [-0.17, -0.1, -0.128, 0.17, 0.14, -0.11, W]]), tint: 'c1' },
-      { bone: Nk, mesh: M([[-0.09, -0.02, -0.08, 0.09, 0.05, 0.07, W]]), tint: 'c1' },
-      { bone: Hp, mesh: M([[-0.19, -0.12, -0.018, 0.19, 0.3, 0.0, W], [-0.22, -0.62, -0.018, 0.22, -0.11, 0.0, W]]), tint: 'c1', sway: [0, 0.02, -0.14] }];
+    // cape: a clasp at the collar; the cloth itself is simulated (see cape())
+    P.neck2 = [{ bone: Nk, mesh: M([[-0.1, -0.03, -0.085, 0.1, 0.035, 0.07, W], [-0.03, -0.05, 0.065, 0.03, 0.01, 0.085, Gd]]), tint: 'c1' }, { cape: true }];
+    this.unit = M([[-0.5, -0.5, -0.5, 0.5, 0.5, 0.5, W]]);
     { const o = []; for (let i = 0; i < 10; i++) { const a = -0.25 + (i / 9) * 0.5, x = Math.sin(a * 3.2) * 0.075, y = -0.03 - Math.cos(a * 3.2) * 0.04 + 0.04, z = 0.08 + Math.cos(a * 3.2) * 0.03 - 0.02; o.push([x - 0.012, y - 0.012, z - 0.006, x + 0.012, y + 0.012, z + 0.012, Gd]); }
       o.push([-0.025, -0.1, 0.1, 0.025, -0.045, 0.118, Gd]); P.neck3 = [{ bone: Nk, mesh: M(o), emis: 0.35 }]; }
     P.neck4 = [{ bone: S2, mesh: M([[-0.02, 0.1, 0.1, 0.02, 0.15, 0.13, W], [-0.028, -0.12, 0.105, 0.028, 0.105, 0.125, W], [-0.018, -0.15, 0.105, 0.018, -0.12, 0.125, W]]), tint: 'c1' },
@@ -2955,6 +3057,7 @@ const COS = {
       const list = this.parts[key]; if (!list || (fpvMe && key[0] !== 't')) continue;
       for (const part of list) {
         const e = pools[n] || (pools[n] = { mesh: null, model: M4.create(), tint: [1, 1, 1], emis: 0, t: M4.create(), r: M4.create(), noShadow: false }); n++;
+        if (part.cape) { n--; n = this.cape(p, sc, pools, n); continue; }
         const o = part.bone * 16, w = p.anim.world;
         if (part.sway) { // cape skirt: hinge at the hips, swings back with speed
           const sp = Math.min(1, Math.hypot(p.vel[0], p.vel[2]) / 7), a = -(0.08 + sp * 0.55 + Math.sin(G.now * 7 + p.id) * 0.04 * (0.3 + sp));
@@ -2967,7 +3070,134 @@ const COS = {
       }
     }
   },
+  // ---- cloth cape: one continuous sheet (a small grid of verlet points) pinned along the shoulders,
+  // kept behind the body, swinging from the character's own motion plus a little flutter and the weather's wind
+  cape(p, sc, pools, n) {
+    const CO = 5, RO = 9, DY = 0.115, NP = CO * RO;
+    const C = p._cape || (p._cape = { P: new Float32Array(NP * 3), O: new Float32Array(NP * 3), init: false, t: G.now, buf: new Float32Array((CO - 1) * (RO - 1) * 12 * 9), mesh: null });
+    if (!C.mesh) C.mesh = R.mesh(C.buf, [[0, 3], [1, 3], [2, 3]]);
+    const dt = clamp(G.now - C.t, 0, 0.05); C.t = G.now;
+    // torso frame from the shoulders (bone axes are not anatomical)
+    const w = p.anim.world, la = Assets.bi.LeftArm * 16, ra = Assets.bi.RightArm * 16, hb = Assets.bi.Hips * 16, L = [0, 0, 0], Rr = [0, 0, 0], Hc = [0, 0, 0];
+    M4.point(L, p.model, w[la + 12], w[la + 13], w[la + 14]); M4.point(Rr, p.model, w[ra + 12], w[ra + 13], w[ra + 14]); M4.point(Hc, p.model, w[hb + 12], w[hb + 13], w[hb + 14]);
+    let rx = L[0] - Rr[0], rz = L[2] - Rr[2]; { const l = Math.hypot(rx, rz) || 1; rx /= l; rz /= l; }
+    let fx = -rz, fz = rx; if (fx * p.model[8] + fz * p.model[10] < 0) { fx = -fx; fz = -fz; }
+    const mx = (L[0] + Rr[0]) / 2, my = Math.max(L[1], Rr[1]) - 0.05, mz = (L[2] + Rr[2]) / 2;
+    const widthAt = (j) => 0.42 + (j / (RO - 1)) * 0.3, P = C.P, O = C.O, I = (i, j) => (j * CO + i) * 3;
+    const pin = (i, out) => { const u = i / (CO - 1) - 0.5, wd = widthAt(0); const back = 0.19 - u * u * 0.3; out[0] = mx + rx * u * wd - fx * back; out[1] = my; out[2] = mz + rz * u * wd - fz * back; return out; };
+    const tmp = [0, 0, 0];
+    if (!C.init || Math.hypot(P[0] - pin(0, tmp)[0], P[1] - tmp[1], P[2] - tmp[2]) > 1.5) {
+      for (let j = 0; j < RO; j++) for (let i = 0; i < CO; i++) { pin(i, tmp); const k = I(i, j), u = i / (CO - 1) - 0.5, ex = (widthAt(j) - widthAt(0)) * u; P[k] = tmp[0] + rx * ex - fx * j * 0.02; P[k + 1] = tmp[1] - j * DY; P[k + 2] = tmp[2] + rz * ex - fz * j * 0.02; O[k] = P[k]; O[k + 1] = P[k + 1]; O[k + 2] = P[k + 2]; }
+      C.init = true;
+    }
+    if (dt > 0) {
+      const wind = G.weather ? G.weather.windAt(G.now) : [0, 0], sp = Math.hypot(p.vel[0], p.vel[2]), g = -9.8 * dt * dt;
+      for (let j = 1; j < RO; j++) for (let i = 0; i < CO; i++) {
+        const k = I(i, j), fl = Math.sin(G.now * (5 + sp * 0.9) + j * 0.9 + i * 0.6 + p.id) * (0.25 + sp * 0.12) * (j / RO);
+        const ax = (wind[0] * 0.35 - fx * fl * 0.5 + rx * fl * 0.3) * dt * dt, az = (wind[1] * 0.35 - fz * fl * 0.5 + rz * fl * 0.3) * dt * dt;
+        let vx = (P[k] - O[k]) * 0.96, vy = (P[k + 1] - O[k + 1]) * 0.96, vz = (P[k + 2] - O[k + 2]) * 0.96; const vm = Math.hypot(vx, vy, vz), cap = 7 * dt; if (vm > cap) { const s = cap / vm; vx *= s; vy *= s; vz *= s; } // no whip on fast turns
+        O[k] = P[k]; O[k + 1] = P[k + 1]; O[k + 2] = P[k + 2]; P[k] += vx + ax; P[k + 1] += vy + g + fl * 0.6 * dt * dt; P[k + 2] += vz + az;
+      }
+    }
+    const link = (a, b, rest, wa) => { let dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2]; const d = Math.hypot(dx, dy, dz) || 1e-5, f = (d - rest) / d; const ka = wa, kb = 1 - wa; P[a] += dx * f * ka; P[a + 1] += dy * f * ka; P[a + 2] += dz * f * ka; P[b] -= dx * f * kb; P[b + 1] -= dy * f * kb; P[b + 2] -= dz * f * kb; };
+    const feet = p.visY, cx = mx, cz = mz;
+    for (let it = 0; it < 5; it++) {
+      for (let i = 0; i < CO; i++) { pin(i, tmp); const k = I(i, 0); P[k] = tmp[0]; P[k + 1] = tmp[1]; P[k + 2] = tmp[2]; }
+      for (let j = 0; j < RO; j++) for (let i = 0; i < CO; i++) {
+        const k = I(i, j), top = j === 0;
+        if (j + 1 < RO) link(k, I(i, j + 1), DY, top ? 0 : 0.5);
+        if (i + 1 < CO) { const rest = widthAt(j) / (CO - 1); link(k, I(i + 1, j), rest, top ? 0.5 : 0.5); if (top) { pin(i, tmp); P[k] = tmp[0]; P[k + 1] = tmp[1]; P[k + 2] = tmp[2]; } }
+        if (i + 1 < CO && j + 1 < RO) link(k, I(i + 1, j + 1), Math.hypot(DY, widthAt(j) / (CO - 1)), top ? 0 : 0.5);
+      }
+      // body: stay behind a plane through the chest/hips, and above the ground
+      for (let j = 1; j < RO; j++) for (let i = 0; i < CO; i++) {
+        const k = I(i, j), h = P[k + 1] - feet, kk = clamp((h - 0.95) / 0.3, 0, 1), ox = Hc[0] + (cx - Hc[0]) * kk, oz = Hc[2] + (cz - Hc[2]) * kk;
+        const lx = (P[k] - ox) * fz - (P[k + 2] - oz) * fx, lz = (P[k] - ox) * fx + (P[k + 2] - oz) * fz, back = -0.21 * kk - 0.18 * (1 - kk);
+        if (lz > back && Math.abs(lx) < 0.42 && h > 0.05 && h < 1.65) { const push = back - lz; P[k] += fx * push; P[k + 2] += fz * push; }
+        if (P[k + 1] < feet + 0.03) P[k + 1] = feet + 0.03;
+      }
+    }
+    // mesh: smooth normals, both faces (outside = player colour, lining a little darker)
+    const nrm = new Float32Array(NP * 3);
+    for (let j = 0; j < RO; j++) for (let i = 0; i < CO; i++) {
+      const a = I(Math.max(i - 1, 0), j), b = I(Math.min(i + 1, CO - 1), j), c = I(i, Math.max(j - 1, 0)), d = I(i, Math.min(j + 1, RO - 1));
+      const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[d] - P[c], vy = P[d + 1] - P[c + 1], vz = P[d + 2] - P[c + 2];
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+      if (nx * -fx + nz * -fz < 0) { nx = -nx; ny = -ny; nz = -nz; } // outward = away from the back
+      const k = I(i, j); nrm[k] = nx; nrm[k + 1] = ny; nrm[k + 2] = nz;
+    }
+    const B = C.buf; let o = 0;
+    const vtx = (k, s, sh) => { B[o++] = P[k]; B[o++] = P[k + 1]; B[o++] = P[k + 2]; B[o++] = nrm[k] * s; B[o++] = nrm[k + 1] * s; B[o++] = nrm[k + 2] * s; B[o++] = sh; B[o++] = sh; B[o++] = sh; };
+    for (let j = 0; j < RO - 1; j++) for (let i = 0; i < CO - 1; i++) {
+      const a = I(i, j), b = I(i + 1, j), c = I(i + 1, j + 1), d = I(i, j + 1), sh = 1 - j * 0.03;
+      vtx(a, 1, sh); vtx(b, 1, sh); vtx(c, 1, sh); vtx(a, 1, sh); vtx(c, 1, sh); vtx(d, 1, sh);
+      vtx(a, -1, 0.55); vtx(c, -1, 0.55); vtx(b, -1, 0.55); vtx(a, -1, 0.55); vtx(d, -1, 0.55); vtx(c, -1, 0.55);
+    }
+    R.updateMesh(C.mesh, B);
+    const e = pools[n] || (pools[n] = { mesh: null, model: M4.create(), tint: [1, 1, 1], emis: 0, t: M4.create(), r: M4.create(), noShadow: false }); n++;
+    M4.identity(e.model); e.mesh = C.mesh; e.emis = 0.05; e.noCull = true; const c = p.c1; e.tint[0] = c[0] * 1.6 + 0.04; e.tint[1] = c[1] * 1.6 + 0.04; e.tint[2] = c[2] * 1.6 + 0.04; sc.props.push(e);
+    return n;
+  },
 };
+
+// ==== 11d_weather.js ====
+// ---------- weather: purely visual (sky, fog, particles, ambience); never touches movement, aim or damage ----------
+const WEATHERS = [
+  { id: 'clear', name: '맑음', w: 3 },
+  { id: 'rain', name: '비', w: 2 },
+  { id: 'storm', name: '뇌우', w: 1 },
+  { id: 'snow', name: '눈', w: 2 },
+  { id: 'sand', name: '모래바람', w: 1.5 },
+  { id: 'mist', name: '안개', w: 1.5 },
+];
+class Weather {
+  constructor(kind, seed) {
+    this.def = WEATHERS.find((w) => w.id === kind) || WEATHERS[0]; this.id = this.def.id; this.name = this.def.name;
+    const r = mulberry32(seed ^ 0x5bd1e995); this.windDir = r() * TAU; this.windStr = { clear: 0.5, rain: 1.5, storm: 3.5, snow: 1, sand: 6, mist: 0.4 }[this.id];
+    this.pts = []; this.flash = 0; this.nextBolt = 6 + r() * 8; this.base = null;
+  }
+  static pick(rng) { if (typeof window !== 'undefined' && window.__weather) { rng(); return window.__weather; } let t = 0; for (const w of WEATHERS) t += w.w; let x = rng() * t; for (const w of WEATHERS) { x -= w.w; if (x <= 0) return w.id; } return 'clear'; }
+  windAt(t) { const g = 1 + Math.sin(t * 0.7) * 0.35 + Math.sin(t * 2.3) * 0.15; return [Math.cos(this.windDir) * this.windStr * g, Math.sin(this.windDir) * this.windStr * g]; }
+  // tint the map's sky / fog / light for the weather (called after the map's own theme)
+  applyEnv() {
+    const e = R.env, id = this.id, mixTo = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k), mul = (a, k) => a.map((v) => v * k);
+    if (id === 'rain' || id === 'storm') { const g = [0.12, 0.13, 0.15], k = id === 'storm' ? 0.55 : 0.4; e.zenith = mixTo(e.zenith, mul(g, 0.6), k); e.horizon = mixTo(e.horizon, g.map((v) => v * 2.2), k); e.fogCol = mixTo(e.fogCol, g.map((v) => v * 2.6), k); e.fogDen *= id === 'storm' ? 6 : 4.5; e.sunCol = mul(e.sunCol, id === 'storm' ? 0.35 : 0.5); e.base = mixTo(e.base, mul(e.base, 0.7), 0.5); e.ambSky = mul(e.ambSky, 0.85); }
+    if (id === 'snow') { const w = [0.85, 0.88, 0.95]; e.horizon = mixTo(e.horizon, w, 0.55); e.zenith = mixTo(e.zenith, [0.45, 0.5, 0.6], 0.45); e.fogCol = mixTo(e.fogCol, w, 0.6); e.fogDen *= 5; e.base = mixTo(e.base, [0.78, 0.8, 0.86], 0.32); e.sunCol = mul(e.sunCol, 0.7); e.ambSky = mixTo(e.ambSky, [0.55, 0.58, 0.65], 0.4); }
+    if (id === 'sand') { const s = [0.85, 0.55, 0.26]; e.horizon = mixTo(e.horizon, s, 0.6); e.zenith = mixTo(e.zenith, [0.5, 0.32, 0.16], 0.5); e.fogCol = mixTo(e.fogCol, s, 0.75); e.fogDen *= 8; e.sunCol = mixTo(e.sunCol, [3, 1.9, 1], 0.5); e.base = mixTo(e.base, [0.7, 0.48, 0.26], 0.25); }
+    if (id === 'mist') { e.fogCol = mixTo(e.fogCol, [0.8, 0.82, 0.86], 0.55); e.fogDen *= 10; e.horizon = mixTo(e.horizon, e.fogCol, 0.6); e.sunCol = mul(e.sunCol, 0.75); }
+    this.post = { clear: [1, 1.08], rain: [0.86, 0.72], storm: [0.76, 0.58], snow: [1.04, 0.72], sand: [0.95, 0.85], mist: [0.95, 0.8] }[id];
+    this.base = { zenith: e.zenith.slice(), horizon: e.horizon.slice(), ambSky: e.ambSky.slice(), sunCol: e.sunCol.slice() };
+  }
+  // particles around the camera; lightning in storms
+  update(dt, cam, on) {
+    const id = this.id; if (id === 'clear' || !cam) { Snd.weather && Snd.weather(id, 0); return; }
+    const q = G.settings.quality, N = Math.round(({ rain: 420, storm: 560, snow: 420, sand: 380, mist: 40 }[id] || 0) * (q === 0 ? 0.4 : q === 1 ? 0.7 : 1));
+    const P = this.pts, BX = id === 'mist' ? 34 : 15, BY = id === 'mist' ? 4 : 11, ex = cam[0], ey = cam[1], ez = cam[2], wd = this.windAt(G.now);
+    while (P.length < N) P.push({ x: ex + rand(-BX, BX), y: ey + rand(-BY, BY), z: ez + rand(-BX, BX), s: rand(0.6, 1.4), ph: rand(TAU) });
+    if (P.length > N) P.length = N;
+    const fall = id === 'snow' ? 1.6 : id === 'sand' ? 0.3 : id === 'mist' ? 0 : id === 'storm' ? 26 : 20, Q = FX.frameQuads;
+    for (const p of P) {
+      p.x += (wd[0] * (id === 'sand' ? 2.2 : id === 'snow' ? 0.6 : 0.35) + (id === 'snow' ? Math.sin(G.now * 1.3 + p.ph) * 0.5 : 0)) * dt;
+      p.z += (wd[1] * (id === 'sand' ? 2.2 : id === 'snow' ? 0.6 : 0.35) + (id === 'snow' ? Math.cos(G.now * 1.1 + p.ph) * 0.5 : 0)) * dt;
+      p.y -= fall * p.s * dt;
+      // wrap inside a box that follows the camera
+      if (p.x < ex - BX) p.x += BX * 2; else if (p.x > ex + BX) p.x -= BX * 2; if (p.z < ez - BX) p.z += BX * 2; else if (p.z > ez + BX) p.z -= BX * 2;
+      if (p.y < Math.max(ey - BY, -1)) p.y = ey + BY; else if (p.y > ey + BY) p.y = ey - BY;
+      if (!on) continue;
+      if (id === 'rain' || id === 'storm') { const L = 0.045 * fall * p.s; Q.push({ ab: true, beam: true, ax: p.x, ay: p.y, az: p.z, bx: p.x - wd[0] * 0.02, by: p.y + L, bz: p.z - wd[1] * 0.02, w: 0.013, c: [0.72, 0.78, 0.88], a: 0.42 }); }
+      else if (id === 'snow') Q.push({ ab: true, x: p.x, y: p.y, z: p.z, s: 0.06 * p.s, c: [0.97, 0.98, 1], a: 0.9, kind: 0 });
+      else if (id === 'sand') { Q.push({ ab: true, beam: true, ax: p.x, ay: p.y * 0.3 + ey * 0.7 - 1.5, az: p.z, bx: p.x - wd[0] * 0.03, by: p.y * 0.3 + ey * 0.7 - 1.5, bz: p.z - wd[1] * 0.03, w: 0.012 * p.s, c: [0.62, 0.42, 0.22], a: 0.6 }); if (p.s > 1.25) Q.push({ ab: true, x: p.x, y: ey - 1.2, z: p.z, s: 3, c: [0.68, 0.46, 0.25], a: 0.09, kind: 0 }); }
+      else if (id === 'mist') Q.push({ ab: true, x: p.x, y: Math.max(0.6, ey - 1.6 + p.s), z: p.z, s: 5.5 * p.s, c: [0.86, 0.88, 0.92], a: 0.07, kind: 0 });
+    }
+    // storm: lightning flash + thunder a moment later
+    if (id === 'storm') {
+      this.nextBolt -= dt; if (this.nextBolt <= 0) { this.nextBolt = rand(7, 16); this.flash = 1; this.thunderT = rand(0.4, 1.6); }
+      if (this.thunderT > 0) { this.thunderT -= dt; if (this.thunderT <= 0 && on) Snd.play('thunder', null, 1); }
+    }
+    if (this.base) { const e = R.env, f = this.flash, k = 1 + f * 5; e.zenith = this.base.zenith.map((v) => v * k); e.horizon = this.base.horizon.map((v) => v * (1 + f * 2)); e.ambSky = this.base.ambSky.map((v) => v * (1 + f * 3)); this.flash = Math.max(0, f - dt * 5); }
+    if (Snd.weather) Snd.weather(id, on ? 1 : 0);
+  }
+}
 
 // ==== 12_game.js ====
 // ---------- game flow, match rules, camera, main loop ----------
@@ -3051,7 +3281,7 @@ const G = {
   ready() {
     const m = this.match; this.me.name = this.profile.name;
     if (this.mode === 'local') this.startLocal();
-    else { if (!Net.on) { Snd.play('ui'); this.connectOnline(); return; } if (m.state !== 'play' || !this.map) return; }
+    else { if (!Net.on) { Snd.play('ui'); this.connectOnline(); return; } if (m.state !== 'play' || !this.map) return; if (GM.waiting()) { UI.toast('짝을 기다리는 중이에요', '#ffd36b'); return; } }
     Snd.play('ui2'); this.enterDrop();
   },
   loadMap(seed) {
@@ -3078,9 +3308,9 @@ const G = {
     if (this.screen !== 'drop' || this.match.state !== 'play') return; const p = [0, 0, 0]; if (!this.dropPoint(px, py, p)) return; this.dropAt(p);
   },
   dropAt(p) {
-    const me = this.me; me.yaw = Math.atan2(-p[0], -p[2]); me.pitch = -0.55; me.spawnDrop(p[0], p[2]); me.hide = false;
+    const me = this.me; p = GM.spawnNear(me, p); me.yaw = Math.atan2(-p[0], -p[2]); me.pitch = -0.55; me.spawnDrop(p[0], p[2]); me.hide = false;
     this.screen = 'play'; UI.show(null); Input.resetPlay(); Input.lock(); this.camDist = 7; this.camKick = 0; Snd.intensity = 0.8; UI.last = {}; Net.push(true);
-    if (this._bannerRid !== this.match.rid) { this._bannerRid = this.match.rid; const d = GM.def(); UI.banner(d.name, 2.2); UI.feed(`<b>${d.name}</b><i>${esc(d.desc)}</i>`); UI.feed(`<b>맵</b><i>${this.map.kindName}</i>`); if (GM.id === 'tdm' && me.team >= 0) UI.toast(`나는 ${TEAM_NAME[me.team]} 팀`, TEAM_COL[me.team]); }
+    if (this._bannerRid !== this.match.rid) { this._bannerRid = this.match.rid; const d = GM.def(); UI.banner(d.name, 2.2); UI.feed(`<b>${d.name}</b><i>${esc(d.desc)}</i>`); UI.feed(`<b>맵</b><i>${this.map.kindName} · ${(WEATHERS.find((w) => w.id === this.map.weather) || WEATHERS[0]).name}</i>`); if (GM.teamed() && me.team >= 0) { const q = GM.partner(me); UI.toast(GM.id === 'chain' ? `${GM.tname(me.team)} · 파트너 ${q ? q.name : ''}` : `나는 ${TEAM_NAME[me.team]} 팀`, GM.tcol(me.team)); } }
   },
   // ---------- rules
   randWeapon() { const have = this.match.items.map((i) => i.kind), powerOut = have.some((k) => POWER.includes(k)) || this.players.some((p) => p.state === 'live' && p.weapon.power);
@@ -3100,7 +3330,7 @@ const G = {
       const n = Net.count();
       if (m.state === 'idle') m.state = 'wait';
       if (m.state === 'wait') { if (n >= 2) this.hostStartRound(); }
-      else if (m.state === 'play') { m.time -= dt; const s = Math.floor(m.time); if (s !== m.lastSec) { m.lastSec = s; m.hn++; if (GM.id === 'tdm') GM.hostTeams(false); } if (GM.authority(dt)) m.time = 0; if (m.time <= 0 || n <= 1) { m.time = Math.max(0, m.time); m.state = 'end'; m.endT = 16; m.hn++; this.endRound(); Net.push(true); return; } }
+      else if (m.state === 'play') { m.time -= dt; const s = Math.floor(m.time); if (s !== m.lastSec) { m.lastSec = s; m.hn++; if (GM.teamed()) GM.hostTeams(false); } if (GM.authority(dt)) m.time = 0; if (m.time <= 0 || n <= 1) { m.time = Math.max(0, m.time); m.state = 'end'; m.endT = 16; m.hn++; this.endRound(); Net.push(true); return; } }
       else if (m.state === 'end') { m.endT -= dt; if (m.endT <= 0) { if (n >= 2) this.hostStartRound(); else { m.state = 'wait'; m.hn++; } } }
     }
     if (m.state !== 'play') return;
@@ -3258,6 +3488,7 @@ const G = {
     const rank = list.findIndex((r) => r.me) + 1, meRow = list[rank - 1];
     let win = Math.floor(list.length / 2), won = rank > 0 && rank <= win;
     if (gid === 'tdm') { for (const r of list) r.win = r.team === wt; won = !!(meRow && meRow.team === wt && wt >= 0); win = -1; }
+    else if (gid === 'chain') { const tt = [...GM.teamTotals()].sort((a, b) => b[1] - a[1]), wn = Math.max(1, Math.floor(tt.length / 2)), wset = new Set(tt.slice(0, wn).map((e) => e[0])); for (const r of list) r.win = r.team >= 0 && wset.has(r.team); won = !!(meRow && meRow.win); win = -1; this._chainRank = { tt, wn }; }
     else list.forEach((r, i) => { r.win = i < win; });
     this.results = { list, win, rank, won, gid, wt, ts, draw: gid === 'tdm' && wt < 0 };
     if (this.mode === 'local') this.match.state = 'idle';
@@ -3274,6 +3505,7 @@ const G = {
       const r = this.results, me = meRow || { k: 0, a: 0, stat: '0', team: -1 }; t.textContent = r.draw ? '무승부' : won ? '승리' : '패배'; t.className = won ? 'win' : '';
       let sub = `${list.length}명 중 ${rank}위 · ${me.k}킬 ${me.a}어시스트 · 상위 ${win}명 승리`;
       if (gid === 'tdm') sub = `${TEAM_NAME[0]} ${ts[0]} : ${ts[1]} ${TEAM_NAME[1]} · ` + (r.draw ? '동점' : `${TEAM_NAME[wt]} 팀 승리`) + (me.team >= 0 ? ` · 나는 ${TEAM_NAME[me.team]} 팀, ${me.k}킬` : '');
+      else if (gid === 'chain') { const cr = this._chainRank || { tt: [], wn: 1 }, mi = cr.tt.findIndex((e) => e[0] === me.team); sub = me.team >= 0 ? `${GM.tname(me.team)} · ${cr.tt.length}팀 중 ${mi + 1}위 · 팀 킬 ${cr.tt[mi] ? cr.tt[mi][1] : 0} · 상위 ${cr.wn}팀 승리` : `짝이 없어 이번 판은 관전했어요`; }
       else if (gid === 'gem') sub = `${list.length}명 중 ${rank}위 · 보석 ${me.stat}개 · 1위 ${list[0].name} 보석 ${list[0].stat}개`;
       else if (gid === 'koth') sub = `${list.length}명 중 ${rank}위 · 점령 ${me.stat}점 · 1위 ${list[0].name} ${list[0].stat}점`;
       else if (gid === 'jug') sub = `${list.length}명 중 ${rank}위 · ${me.stat}점 · 1위 ${list[0].name} ${list[0].stat}점`;
@@ -3370,7 +3602,7 @@ const G = {
   },
   render() {
     const sc = this.sc, stage = this.screen === 'title' || this.screen === 'lobby' || this.screen === 'end' || !this.map, cam = this.cam; sc.chars.length = 0; sc.props.length = 0;
-    const map = stage ? this.stage.map : this.map; if (this._theme !== map) { this._theme = map; map.applyTheme(); }
+    const map = stage ? this.stage.map : this.map; if (this._theme !== map) { this._theme = map; map.applyTheme(); map.wx = map.wx || new Weather(map.weather, map.seed); map.wx.applyEnv(); this.weather = map.wx; }
     sc.vm = null;
     if (stage) {
       sc.mapMesh = this.stage.mesh; sc.shadowFocus[0] = 0; sc.shadowFocus[1] = 0; sc.shadowFocus[2] = 0; sc.shadowRadius = 16; R.env.fogDen = 0.00035;
@@ -3400,11 +3632,12 @@ const G = {
       if (top) {
         const h = this.dropHover, me = this.me;
         if (h) { const pc = me.c1; FX.frameQuads.push({ flat: true, x: h[0], y: h[1] + 0.15, z: h[2], s: 3.2 + Math.sin(this.now * 6) * 0.4, c: [pc[0] * 4 + 2, pc[1] * 4 + 2, pc[2] * 4 + 2], a: 1, kind: 3 }, { beam: true, ax: h[0], ay: h[1], az: h[2], bx: h[0], by: h[1] + 40, bz: h[2], w: 0.5, c: [pc[0] * 3 + 1, pc[1] * 3 + 1, pc[2] * 3 + 1], a: 0.8 }); }
-        for (const p of this.players) if (p.state === 'live' || p.state === 'drop') { const c = GM.teamOf(p) >= 0 ? TEAM_LIN[p.team] : p.c1; FX.frameQuads.push({ x: p.pos[0], y: p.pos[1] + 1.5, z: p.pos[2], s: 2.6, c: [c[0] * 3 + 0.3, c[1] * 3 + 0.3, c[2] * 3 + 0.3], a: 1, kind: 0 }); }
+        for (const p of this.players) if (p.state === 'live' || p.state === 'drop') { const c = GM.teamOf(p) >= 0 ? GM.tlin(p.team) : p.c1; FX.frameQuads.push({ x: p.pos[0], y: p.pos[1] + 1.5, z: p.pos[2], s: 2.6, c: [c[0] * 3 + 0.3, c[1] * 3 + 0.3, c[2] * 3 + 0.3], a: 1, kind: 0 }); }
       }
     }
+    { const t = performance.now() / 1000, wdt = clamp(t - (this._wxT || t), 0, 0.05); this._wxT = t; if (map.wx) map.wx.update(wdt, cam.eye, !(this.screen === 'drop' && !stage)); }
     sc.lights = FX.topLights(); sc.parts = FX.build(this.view, cam.eye);
-    R.post.exposure = 1.0; if (!this.noRender) R.render(sc);
+    const wp = map.wx && map.wx.post; R.post.exposure = wp ? wp[0] : 1.0; R.post.sat = wp ? wp[1] : 1.08; if (!this.noRender) R.render(sc);
   },
 };
 window.G = G; window.Net = Net; window.Input = Input;

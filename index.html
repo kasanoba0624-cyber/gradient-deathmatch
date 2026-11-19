@@ -2075,7 +2075,7 @@ class Player {
       else if (this.reloadT <= 0) { const need = w.mag - this.mag, take = Math.min(need, this.reserve); this.mag += take; if (this.reserve !== Infinity) this.reserve -= take; }
     }
     if (this.throwT > 0) { this.throwT -= dt; if (!this.thrown && this.throwT < 0.42) { this.thrown = true; this.releaseGrenade(); } }
-    if (this.meleeT > 0) { this.meleeT -= dt; if (!this.struck && this.meleeT < 0.4) { this.struck = true; this.meleeHit(); } }
+    if (this.meleeT > 0) { this.meleeT -= dt; if (this.meleeT < 0.5 && this.meleeT > 0.2) this.meleeHit(); }
     const busy = this.reloadT > 0 || this.throwT > 0 || this.meleeT > 0 || this.swapT > 0;
     if (w.spin) { const want = inp.fire && this.state === 'live' && !busy && this.mag > 0, was = this.spinV || 0; this.spinV = clamp(was + (want ? dt / w.spin : -dt / 0.9), 0, 1); if (want && was === 0) Snd.play('spinup', this.pos, 0.8); } else this.spinV = 0;
     if (this.state === 'live' && !busy) {
@@ -2175,15 +2175,18 @@ class Player {
     const hp = this.headPos, x = hp[0] + d[0] * 0.5, y = hp[1] + 0.1, z = hp[2] + d[2] * 0.5, sp = 17;
     G.addGrenade(x, y, z, d[0] * sp + this.vel[0] * 0.4, d[1] * sp + 4.2, d[2] * sp + this.vel[2] * 0.4, this, true);
   }
-  startMelee() { if (this.gs) Gad.uncloak(this); this.meleeT = 0.68; this.struck = false; this.anim.play('Rifle_Punch', { mask: 1, t0: 0.4, t1: 2.3, rate: 2.7, fadeIn: 0.05, fadeOut: 0.16 }); Snd.play('melee', this.pos, 0.9); if (this.grounded) { this.vel[0] += Math.sin(this.yaw) * 4; this.vel[2] += Math.cos(this.yaw) * 4; } if (this === G.me) G.netEvent('ml'); }
-  meleeHit() {
-    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw); let hit = false;
+  startMelee() { if (this.gs) Gad.uncloak(this); this.meleeT = 0.68; this.struck = false; this.meleeHits = []; this.anim.play('Rifle_Punch', { mask: 1, t0: 0.4, t1: 2.3, rate: 2.7, fadeIn: 0.05, fadeOut: 0.16 }); Snd.play('melee', this.pos, 0.9); if (this.grounded) { this.vel[0] += Math.sin(this.yaw) * 4; this.vel[2] += Math.cos(this.yaw) * 4; } if (this === G.me) G.netEvent('ml'); }
+  meleeHit() { // called every frame of the strike window; each target is hit once per swing
+    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), hits = this.meleeHits || (this.meleeHits = []); let hit = false;
     for (const q of G.players) {
-      if (q === this || q.state !== 'live') continue; const dx = q.pos[0] - this.pos[0], dz = q.pos[2] - this.pos[2], dy = q.pos[1] - this.pos[1], d = Math.hypot(dx, dz);
-      if (d > 2.4 || Math.abs(dy) > 1.6 || (d > 0.4 && (dx * fx + dz * fz) / d < 0.45)) continue;
-      G.dealDamage(q, 60, this, false, 'melee', [fx, 0, fz]); FX.splat(q.pos[0], q.pos[1] + 1.2, q.pos[2], fx, 0.3, fz, q.c1, q.c2, 10); hit = true;
+      if (q === this || q.state !== 'live' || hits.includes(q) || GM.ally(q, this)) continue; const dx = q.pos[0] - this.pos[0], dz = q.pos[2] - this.pos[2], dy = q.pos[1] - this.pos[1], d = Math.hypot(dx, dz);
+      if (d > 2.9 || Math.abs(dy) > 1.9) continue;
+      const dot = d > 0.01 ? (dx * fx + dz * fz) / d : 1; if (d > 1.1 ? dot < 0.25 : dot < -0.3) continue; // wide cone; point-blank almost anything but behind
+      if (!G.map.los(this.pos[0], this.pos[1] + 1.2, this.pos[2], q.pos[0], q.pos[1] + 1.2, q.pos[2])) continue;
+      hits.push(q); G.dealDamage(q, 60, this, false, 'melee', [fx, 0, fz]); FX.splat(q.pos[0], q.pos[1] + 1.2, q.pos[2], fx, 0.3, fz, q.c1, q.c2, 10); hit = true;
+      if (q.kind !== 'remote' && q.state === 'live') { q.vel[0] += dx / (d || 1) * 4; q.vel[2] += dz / (d || 1) * 4; }
     }
-    if (hit) { Snd.play('thud', this.pos, 1); if (this === G.me) FX.shake = Math.max(FX.shake, 0.25); }
+    if (hit) { Snd.play('thud', this.pos, 1); if (this === G.me) { FX.shake = Math.max(FX.shake, 0.25); } }
   }
   // ---------- damage
   hitTest(ox, oy, oz, dx, dy, dz, maxT, out) {
@@ -2258,13 +2261,14 @@ class Bot {
     if (G.match.state !== 'play') return;
     this.gT -= dt; this.jumpT -= dt;
     // ---- perception
+    if (this.target && Gad.cloaked(this.target) && Math.hypot(this.target.pos[0] - p.pos[0], this.target.pos[2] - p.pos[2]) > 2.5) { this.target = null; this.lastSeen = null; this.goal = null; this.path = null; }
     this.thinkT -= dt;
     if (this.thinkT <= 0) {
       this.thinkT = 0.14 + rand(0.08); let best = null, bs = 1e9; const ey = p.eyeY(), fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
       for (const q of G.players) {
         if (q === p || q.state !== 'live' || GM.ally(q, p)) continue; const dx = q.pos[0] - p.pos[0], dz = q.pos[2] - p.pos[2], d = Math.hypot(dx, dz); if (d > 46) continue;
         const facing = (dx * fx + dz * fz) / (d || 1), aware = d < 6 || facing > 0.25 || (p.lastAttacker === q && now - p.lastAttackT < 3) || q.sinceFire < 0.5 && d < 30;
-        if (!aware || q.invuln > 0 || (d > 5 && Gad.cloaked(q))) continue; if (!map.los(p.pos[0], ey, p.pos[2], q.pos[0], q.pos[1] + 1.2, q.pos[2])) continue;
+        if (!aware || q.invuln > 0 || (d > 2.5 && Gad.cloaked(q))) continue; if (!map.los(p.pos[0], ey, p.pos[2], q.pos[0], q.pos[1] + 1.2, q.pos[2])) continue;
         const provoked = (p.lastAttacker === q && now - p.lastAttackT < 4) || d < 6;
         if (q.kind !== 'bot' && !provoked && q !== this.target) { let n = 0; for (const b of G.bots) if (b !== this && b.target === q && b.p.state === 'live') n++; if (n >= 2) continue; }
         const s = d - (q === this.target ? 10 : 0) - (p.lastAttacker === q ? 6 : 0) - GM.botBias(q) + (q.kind !== 'bot' && !provoked ? 7 : 0); if (s < bs) { bs = s; best = q; }
@@ -2874,7 +2878,7 @@ const UI = {
     const g = GADGETS[me.gad], used = GAD_KEYS.filter((n) => g.keys[n]); el.style.setProperty('--gc', rgbToHex(...g.col));
     for (const n of used) { const b = $('tg' + n); b.hidden = false; b.innerHTML = `${esc(g.keys[n][2] || g.keys[n][0])}<small>${n}</small>`; }
     const row = (n) => Input.touch ? `<div><kbd>${esc(g.keys[n][0])}</kbd><span class="d">${esc(g.keys[n][1])}</span></div>` : `<div><kbd>${n}</kbd><b>${esc(g.keys[n][0])}</b><span class="d">${esc(g.keys[n][1])}</span></div>`;
-    $('gdgName').textContent = '보조 · ' + g.name; $('gdgKeys').innerHTML = (Input.touch ? '<div class="tip">오른쪽 보조 버튼으로 조작해요</div>' : '') + used.map(row).join('');
+    $('gdgName').textContent = '보조 · ' + g.name; $('gdgKeys').innerHTML = (Input.touch ? '<div class="tip">오른쪽 보조 버튼으로 조작해요</div>' : '') + used.map(row).join('') + (g.tip ? `<div class="tip">${esc(Input.touch ? g.tip.replace(' · W 가속 강하 · S 감속', ' · 이동 스틱 앞 가속, 뒤 감속') : g.tip)}</div>` : '');
     el.classList.add('big'); el.hidden = false; Snd.play('ui2');
   },
   gadgetHud(me, dt) {
@@ -2882,7 +2886,8 @@ const UI = {
     const s = me.gs, g = GADGETS[s.key];
     if (this.gadT > 0) { this.gadT -= dt; if (this.gadT <= 0) { el.classList.remove('big'); const used = GAD_KEYS.filter((n) => g.keys[n]); $('gdgKeys').innerHTML = used.map((n) => Input.touch ? `<span><b>${esc(g.keys[n][0])}</b></span>` : `<span><kbd>${n}</kbd>${esc(g.keys[n][0])}</span>`).join(''); } }
     let r;
-    if (s.key === 'wings' || s.key === 'dash') { const mx = Gad.maxCh(s.key); r = '<span class="dots">' + Array.from({ length: mx }, (_, i) => `<i class="${i < s.ch ? 'on' : ''}"></i>`).join('') + '</span>'; }
+    if (s.key === 'wings') r = s.glide ? '<span class="st on">활공 중</span>' : s.open ? '<span class="st on">펼침</span>' : '<span class="st">접음 · 급강하</span>';
+    else if (s.key === 'dash') { const mx = Gad.maxCh(s.key); r = '<span class="dots">' + Array.from({ length: mx }, (_, i) => `<i class="${i < s.ch ? 'on' : ''}"></i>`).join('') + '</span>'; }
     else if (s.key === 'jetpack') r = `<span class="bar"><i style="width:${Math.round(s.fuel * 100)}%"></i></span>`;
     else if (s.key === 'grapple') r = s.hook ? '<span class="st on">연결됨</span>' : s.cd > 0 ? `<span class="st">${s.cd.toFixed(1)}초</span>` : '<span class="st on">준비</span>';
     else r = s.cloak > 0 ? `<span class="st on">위장 ${s.cloak.toFixed(1)}초</span>` : s.cd > 0 ? `<span class="st">${Math.ceil(s.cd)}초 후 사용</span>` : '<span class="st on">준비</span>';
@@ -3488,7 +3493,7 @@ class Weather {
 // ---------- 보조 (gadgets): a second slot beside the gun, worked with I J K L (touch: its own buttons) ----------
 // plus the map's jump pads / updraft vents, which push players around the same way
 const GADGETS = {
-  wings: { id: 1, name: '날개', col: [0.78, 0.9, 1.0], keys: { I: ['날갯짓', '위로 솟구쳐요 · 3번까지, 땅에 있으면 빨리 충전', '날갯짓'], J: ['왼쪽 돌진', '왼쪽으로 휙 날아가요', '◀돌진'], K: ['활공', '누르고 있으면 천천히 떨어지며 앞으로 날아가요', '활공'], L: ['오른쪽 돌진', '오른쪽으로 휙 날아가요', '돌진▶'] } },
+  wings: { id: 1, name: '날개', col: [0.78, 0.9, 1.0], tip: '활공 중에는 시점을 돌리는 대로 부드럽게 선회 · W 가속 강하 · S 감속', keys: { I: ['날갯짓', '땅에서 누르면 붕 떠오르고, 공중에서 누르면 더 높이 · 횟수 제한 없음', '날갯짓'], J: ['왼쪽 급선회', '왼쪽으로 휙 꺾어요', '◀선회'], K: ['펼치기/접기', '펼치면 패러글라이더처럼 바람 타고 활공 (공중에서 자동으로 펼침) · 접으면 급강하', '펼침'], L: ['오른쪽 급선회', '오른쪽으로 휙 꺾어요', '선회▶'] } },
   grapple: { id: 2, name: '그래플러', col: [1.0, 0.72, 0.25], keys: { I: ['발사', '조준점에 갈고리를 걸고 끌려가요 · 한 번 더 누르면 놓기', '발사'], K: ['끊기', '줄을 끊고 그 자리에서 떨어져요', '끊기'] } },
   jetpack: { id: 3, name: '제트팩', col: [1.0, 0.48, 0.2], keys: { I: ['상승', '누르는 동안 위로 날아요 (연료 소모)', '상승'], J: ['왼쪽 분사', '누르는 동안 왼쪽으로', '◀분사'], K: ['내려찍기', '공중에서 땅을 내려찍어 주변 적에게 피해', '찍기'], L: ['오른쪽 분사', '누르는 동안 오른쪽으로', '분사▶'] } },
   dash: { id: 4, name: '대시 부츠', col: [0.38, 1.0, 0.72], keys: { I: ['앞 대시', '앞으로 순간 돌진 · 2번까지 충전', '▲대시'], J: ['왼쪽 대시', '왼쪽으로 순간 돌진', '◀대시'], K: ['뒤 대시', '뒤로 순간 돌진', '▼대시'], L: ['오른쪽 대시', '오른쪽으로 순간 돌진', '대시▶'] } },
@@ -3507,8 +3512,8 @@ const itemFromCode = (c) => c === 9 ? 'grenade' : c >= 21 && c <= 20 + GAD_LIST.
 // flags (also what other players see): 1 glide · 2 flap · 4 hooked · 8 thrust · 16 cloaked · 32 dash · 64 slam
 const Gad = {
   M: {},
-  fresh(key) { return { key, ch: this.maxCh(key), chT: 0, fuel: 1, idleT: 0, cd: 0, hook: null, hookT: 0, miss: null, missT: 0, cloak: 0, flapT: 0, dashT: 0, glide: false, thrust: 0, slam: false, f: 0, pf: 0, spread: 0, beat: 0, sndT: 0, holdK: null, holdT: 0 }; },
-  maxCh(k) { return k === 'wings' ? 3 : k === 'dash' ? 2 : 0; },
+  fresh(key) { return { key, ch: this.maxCh(key), chT: 0, fuel: 1, idleT: 0, cd: 0, hook: null, hookT: 0, miss: null, missT: 0, cloak: 0, flapT: 0, dashT: 0, glide: false, open: true, bank: 0, thrust: 0, slam: false, f: 0, pf: 0, spread: 0, beat: 0, sndT: 0, holdK: null, holdT: 0 }; },
+  maxCh(k) { return k === 'dash' ? 2 : 0; },
   equip(p, key) { p.gad = key; p.gs = this.fresh(key); if (p === G.me) UI.gadgetHelp(true); },
   clear(p) { p.gad = null; p.gs = null; if (p === G.me) UI.gadgetHelp(false); },
   flags(p) { const s = p.gs; if (!s) return 0; if (p.kind === 'remote') return s.f; return (s.glide ? 1 : 0) | (s.flapT > 0 ? 2 : 0) | (s.hook ? 4 : 0) | (s.thrust > 0 ? 8 : 0) | (s.cloak > 0 ? 16 : 0) | (s.dashT > 0 ? 32 : 0) | (s.slam ? 64 : 0); },
@@ -3519,11 +3524,28 @@ const Gad = {
     const hit = (n) => !!inp['g' + n] && !pv['g' + n], hold = (n) => !!inp['g' + n];
     const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw), rx = -fz, rz = fx; // forward, right
     let gm = 1; s.cd = Math.max(0, s.cd - dt); s.flapT = Math.max(0, s.flapT - dt); s.dashT = Math.max(0, s.dashT - dt); s.missT = Math.max(0, s.missT - dt); s.glide = false; s.thrust = 0;
-    const mx = this.maxCh(k); if (mx && s.ch < mx) { s.chT += dt * (p.grounded ? 1 : 0.5); if (s.chT >= (k === 'wings' ? 1.6 : 1.4)) { s.chT = 0; s.ch++; } } else s.chT = 0;
+    const mx = this.maxCh(k); if (mx && s.ch < mx) { s.chT += dt * (p.grounded ? 1 : 0.5); if (s.chT >= 1.4) { s.chT = 0; s.ch++; } } else s.chT = 0;
     if (k === 'wings') {
-      if (hit('I') && s.ch > 0) { s.ch--; v[1] = Math.max(v[1], 0) * 0.3 + 10.2; v[0] += fx * 1.5; v[2] += fz * 1.5; p.grounded = false; p.padFly = false; s.flapT = 0.42; Snd.play('flap', p.pos, 0.9); this.puff(p, 8, 0); }
-      for (const [n, sg] of [['J', -1], ['L', 1]]) if (hit(n) && s.ch > 0) { s.ch--; v[0] = rx * sg * 11 + v[0] * 0.3; v[2] = rz * sg * 11 + v[2] * 0.3; v[1] = Math.max(v[1], 2.4); p.grounded = false; p.padFly = false; p.dashT = 0.28; s.flapT = 0.3; s.dashT = 0.25; Snd.play('flap', p.pos, 0.8); this.puff(p, 6, sg); }
-      if (hold('K') && !p.grounded && v[1] < 0.5) { s.glide = true; gm = 0.15; p.padFly = false; if (v[1] < -2.4) v[1] = damp(v[1], -2.4, 9, dt); const kk = 1 - Math.exp(-2.2 * dt); v[0] += (fx * 9.5 - v[0]) * kk; v[2] += (fz * 9.5 - v[2]) * kk; p.dashT = Math.max(p.dashT || 0, 0.05); }
+      // flap: no limit (short beat cooldown); from the ground it pops you up, in the air it climbs, fading out high above the ground
+      if (hit('I') && s.cd <= 0) {
+        s.cd = 0.28; s.open = true; p.padFly = false; s.flapT = 0.42; Snd.play('flap', p.pos, 0.9); this.puff(p, 8, 0);
+        if (p.grounded) { v[1] = 9.5; v[0] += fx * 2; v[2] += fz * 2; p.grounded = false; }
+        else { const alt = p.pos[1] - G.map.groundY(p.pos[0], p.pos[2], p.pos[1]), kk = clamp(1 - (alt - 14) / 7, 0, 1); v[1] = Math.min(Math.max(v[1], -1) + 7 * kk, 8.5); v[0] += fx * 1.2; v[2] += fz * 1.2; }
+      }
+      if (hit('K')) { s.open = !s.open; Snd.play('flap', p.pos, 0.5); }
+      for (const [n, sg] of [['J', -1], ['L', 1]]) if (hit(n) && !p.grounded && s.dashT <= 0) { const sp = Math.max(9, Math.hypot(v[0], v[2])); v[0] = rx * sg * sp * 0.8 + fx * sp * 0.6; v[2] = rz * sg * sp * 0.8 + fz * sp * 0.6; s.dashT = 0.5; s.flapT = 0.3; Snd.play('flap', p.pos, 0.8); this.puff(p, 6, sg); }
+      if (p.grounded) s.open = true; // landing re-opens for the next take-off
+      // paraglide: once airborne and past the climb, the wings hold you on the wind
+      if (!p.grounded && s.open && v[1] < 1.2) {
+        s.glide = true; gm = 0.001; p.padFly = false; p.dashT = Math.max(p.dashT || 0, 0.05);
+        const f = inp.f || 0, dive = clamp(-p.pitch * 1.4, -0.6, 1) + (f > 0.1 ? 0.8 : 0), flare = f < -0.1 ? 1 : 0;
+        const tSpeed = clamp(10.5 + dive * 6 - flare * 4.5, 5.5, 18), tSink = clamp(1.6 + Math.max(0, dive) * 3.4 - flare * 0.5 - Math.max(0, -dive) * 0.4, 0.9, 5.5);
+        let sp = Math.hypot(v[0], v[2]), hd = sp > 0.5 ? Math.atan2(v[0], v[2]) : p.yaw;
+        let dh = p.yaw - hd; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); hd += clamp(dh, -2.4 * dt, 2.4 * dt); // smooth turns toward where you look
+        sp += (tSpeed - sp) * (1 - Math.exp(-1.4 * dt)); v[0] = Math.sin(hd) * sp; v[2] = Math.cos(hd) * sp;
+        v[1] += (-tSink - v[1]) * (1 - Math.exp(-2.6 * dt));
+        s.bank = clamp(dh * 1.2, -0.7, 0.7);
+      } else s.bank = 0;
     } else if (k === 'grapple') {
       if (s.hook) {
         s.hookT += dt; const h = s.hook, cx = h[0] - p.pos[0], cy = h[1] - (p.pos[1] + 1.1), cz = h[2] - p.pos[2], d = Math.hypot(cx, cy, cz) || 1;
@@ -3610,7 +3632,7 @@ const Gad = {
     if (b.gadT > 0) return; b.gadT = 0.3;
     if (k === 'dash' && t && p.sinceHit < 0.5 && s.ch > 0) { inp[Math.random() < 0.5 ? 'gJ' : 'gL'] = true; b.gadT = 1.4; }
     else if (k === 'dash' && !t && s.ch > 1 && Math.random() < 0.06) { inp.gI = true; b.gadT = 2; }
-    else if (k === 'wings' && t && s.ch > 1 && Math.random() < 0.18) { inp.gI = true; b.gadT = 1.2; }
+    else if (k === 'wings' && t && Math.random() < 0.18) { inp.gI = true; b.gadT = 1.2; }
     else if (k === 'jetpack' && t && s.fuel > 0.7 && Math.random() < 0.12) { s.holdK = 'gI'; s.holdT = 0.7; b.gadT = 3; }
     else if (k === 'cloak' && t && s.cd <= 0 && Math.hypot(t.pos[0] - p.pos[0], t.pos[2] - p.pos[2]) > 10 && Math.random() < 0.2) { inp.gI = true; b.gadT = 3; }
   },
@@ -3648,8 +3670,8 @@ const Gad = {
     const sp = bone('Spine2', this._v || (this._v = [0, 0, 0])), dt = clamp(G.now - (s.drawT || G.now), 0, 0.05); s.drawT = G.now;
     if (s.key === 'wings') {
       const open = (f & 3) || (f & 32) ? 1 : 0; s.spread = damp(s.spread, open, open ? 12 : 5, dt); s.beat += dt * ((f & 2) ? 22 : (f & 1) ? 3 : 1.4);
-      const flap = (f & 2) ? Math.sin(s.beat) * 0.6 : (f & 1) ? Math.sin(s.beat) * 0.06 : Math.sin(s.beat) * 0.03, lift = lerp(-0.55, 0.18, s.spread) + flap, sweep = lerp(1.4, 0.18, s.spread), sz = lerp(0.62, 1, s.spread);
-      if (!fpv) { const c = p.c1, t = [c[0] * 0.5 + 0.75, c[1] * 0.5 + 0.75, c[2] * 0.5 + 0.75]; part(this.M.wingL, sp[0] + 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', sweep], ['rotZ', lift], ['S', sz]], t, 0.25); part(this.M.wingR, sp[0] - 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', -sweep], ['rotZ', -lift], ['S', sz]], t, 0.25); }
+      const flap = (f & 2) ? Math.sin(s.beat) * 0.6 : (f & 1) ? Math.sin(s.beat) * 0.05 : Math.sin(s.beat) * 0.03, lift = lerp(-0.55, 0.12, s.spread) + flap, sweep = lerp(1.4, 0.18, s.spread), sz = lerp(0.62, 1, s.spread);
+      if (!fpv) { const c = p.c1, t = [c[0] * 0.5 + 0.75, c[1] * 0.5 + 0.75, c[2] * 0.5 + 0.75]; const bk = (s.bank || 0) * s.spread; part(this.M.wingL, sp[0] + 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', sweep], ['rotZ', lift + bk], ['S', sz * 1.15]], t, 0.25); part(this.M.wingR, sp[0] - 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', -sweep], ['rotZ', -lift + bk], ['S', sz * 1.15]], t, 0.25); }
       if ((f & 1) && G.frame % 3 === 0) { const wp = [0, 0, 0]; for (const sg of [-1, 1]) { M4.point(wp, p.model, sg * 1.25, sp[1] + 0.15, sp[2] - 0.3); FX.spawn({ x: wp[0], y: wp[1], z: wp[2], vy: 0.3, life: 0.5, s0: 0.05, s1: 0.0, c: [1.6, 1.8, 2.2], a: 0.6 }); } }
     } else if (s.key === 'jetpack') {
       if (!fpv) part(this.M.pack, sp[0], sp[1] - 0.02, sp[2] - 0.2, null, null, 0.1);
@@ -3935,7 +3957,13 @@ const G = {
     for (let i = rs.length - 1; i >= 0; i--) {
       const k = rs[i], step = SPD * dt; k.life -= dt; let hitT = step, hit = false;
       if (this.map.raycast(k.x, k.y, k.z, k.dx || 1e-9, k.dy || 1e-9, k.dz || 1e-9, step, _RC)) { hitT = _RC.t; hit = true; }
-      for (const p of this.players) { if (p === k.owner || p.state !== 'live' || GM.ally(p, k.owner)) continue; const t = p.hitTest(k.x, k.y, k.z, k.dx, k.dy, k.dz, hitT, _HT); if (t > 0 && t < hitT) { hitT = t; hit = true; } }
+      for (const p of this.players) {
+        if (p === k.owner || p.state !== 'live' || GM.ally(p, k.owner)) continue;
+        const t = p.hitTest(k.x, k.y, k.z, k.dx, k.dy, k.dz, hitT, _HT); if (t > 0 && t < hitT) { hitT = t; hit = true; }
+        // a rocket is fat: any pass within 0.6 m of the body column (ankles to top of head) detonates it
+        const y0 = p.pos[1] + 0.05, y1 = p.pos[1] + (p.crouch ? 1.35 : 1.85), n = Math.max(2, Math.ceil(hitT / 0.15));
+        for (let j = 0; j <= n; j++) { const s = hitT * j / n, x = k.x + k.dx * s - p.pos[0], y = k.y + k.dy * s, z = k.z + k.dz * s - p.pos[2], vy = y < y0 ? y0 - y : y > y1 ? y - y1 : 0; if (x * x + z * z + vy * vy < 0.36) { if (s < hitT) { hitT = s; hit = true; } break; } }
+      }
       k.x += k.dx * hitT; k.y += k.dy * hitT; k.z += k.dz * hitT;
       if (Math.abs(k.x) > ARENA + 5 || Math.abs(k.z) > ARENA + 5) { rs.splice(i, 1); continue; }
       k.trail -= dt; if (k.trail <= 0) { k.trail = 0.016; FX.spawn({ x: k.x, y: k.y, z: k.z, vx: rand(-0.3, 0.3), vy: rand(0, 0.5), vz: rand(-0.3, 0.3), life: rand(0.7, 1.3), s0: 0.12, s1: rand(0.5, 0.9), c: [0.55, 0.55, 0.58], a: 0.45, kind: 1, add: false, drag: 1.5 }); FX.spawn({ x: k.x, y: k.y, z: k.z, life: 0.12, s0: 0.25, s1: 0.1, c: [6, 3, 0.8] }); }

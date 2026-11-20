@@ -2651,15 +2651,16 @@ const Input = {
       e.preventDefault();
     });
     addEventListener('mouseup', (e) => { const fb = G.settings.swapFire ? 0 : 2; if (e.button === fb) this.fire = false; else if (e.button === 0 || e.button === 2) this.aim = false; });
-    // mouse look. Chrome merges mouse events per frame, and with pointer lock + raw input the merged event's movementX can
-    // carry only part of the motion -> the view lags/skips against the hand. So read every raw sample: pointerrawupdate
-    // (unmerged, https) or each coalesced pointermove sample; a stray spike right after locking is dropped
-    const looking = () => G.screen === 'play' && (this.locked || this.lockOK === false) && !this.touch;
-    const addLook = (dx, dy) => { dx = dx || 0; dy = dy || 0; if (performance.now() - (this.lockAt || 0) < 250 && (Math.abs(dx) > 120 || Math.abs(dy) > 120)) return; this.lookDX += dx; this.lookDY += dy; };
-    const eat = (e) => { if (e.pointerType && e.pointerType !== 'mouse') return; if (!looking()) return; const cs = e.getCoalescedEvents ? e.getCoalescedEvents() : null; if (cs && cs.length > 1) for (const c of cs) addLook(c.movementX, c.movementY); else addLook(e.movementX, e.movementY); };
-    this.rawLook = 'onpointerrawupdate' in window;
-    if (this.rawLook) addEventListener('pointerrawupdate', eat); else addEventListener('pointermove', eat);
-    addEventListener('mousemove', (e) => { if (this.touch) return; if (G.screen === 'drop') G.dropHoverAt(e.clientX, e.clientY); });
+    // mouse look: plain mousemove movementX/Y under an ordinary pointer lock - the same path as the web (artifact) version,
+    // so the feel and sensitivity match it. only a stray spike right after locking is dropped
+    addEventListener('mousemove', (e) => {
+      if (this.touch) return;
+      if (G.screen === 'drop') { G.dropHoverAt(e.clientX, e.clientY); return; }
+      if (G.screen === 'play' && (this.locked || this.lockOK === false)) {
+        const dx = e.movementX || 0, dy = e.movementY || 0; if (performance.now() - (this.lockAt || 0) < 250 && (Math.abs(dx) > 120 || Math.abs(dy) > 120)) return;
+        this.lookDX += dx; this.lookDY += dy;
+      }
+    });
     document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === cv; if (this.locked) { this.lockAt = performance.now(); this.lookDX = this.lookDY = 0; this.everLocked = true; this.lockOK = true; this.lockFails = 0; } if (!this.locked && G.screen === 'play' && !this.touch && $('pause').hidden) UI.togglePause(true); });
     document.addEventListener('pointerlockerror', () => { });
     // ---- touch
@@ -2706,10 +2707,10 @@ const Input = {
     // a failed lock (Chrome refuses right after an unlock, or the raw-input option in some pages) must NOT drop the game into
     // free-cursor look for good: retry plain lock, and only give up after several real failures
     if (this.touch) return; const cv = $('gl');
-    const plainFail = () => { this.lockFails = (this.lockFails || 0) + 1; if (!this.everLocked && this.lockFails >= 4) this.lockOK = false; };
+    const plainFail = (er) => { this.lockFails = (this.lockFails || 0) + 1; if (!this.everLocked && (this.lockFails >= 4 || (er && er.name === 'WrongDocumentError'))) this.lockOK = false; }; // a page that can never lock: look with the free cursor right away
     const plain = () => { try { const p = cv.requestPointerLock && cv.requestPointerLock(); if (p && p.catch) p.catch(plainFail); } catch (e) { plainFail(); } };
     const rawFail = (er) => { this.rawFails = (this.rawFails || 0) + 1; if ((er && er.name === 'NotSupportedError') || this.rawFails >= 2) this.rawOK = false; plain(); };
-    try { const p = this.rawOK !== false && cv.requestPointerLock && cv.requestPointerLock({ unadjustedMovement: true }); if (p && p.catch) p.catch(rawFail); else if (!p) plain(); } catch (e) { rawFail(e); }
+    plain(); void rawFail;
   },
   unlock() { try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { } },
   resetPlay() { for (const n of GAD_KEYS) this.btn['g' + n] = false; this.fire = this.aim = this.fireTouch = false; this.aimToggle = false; this.crouch = false; this.sprint = false; this.lookDX = this.lookDY = this.tlookDX = this.tlookDY = 0; this.pulses = {}; $('tAim').classList.remove('on'); $('tCrouch').classList.remove('on'); },

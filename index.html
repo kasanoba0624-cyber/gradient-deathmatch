@@ -2218,6 +2218,7 @@ class Player {
   }
   // ---------- visuals
   animate(dt) {
+    { const gl = this.gs && this.state === 'live' && (Gad.flags(this) & 1) ? 1 : 0; this.gTilt = damp(this.gTilt || 0, gl, gl ? 5 : 8, dt); } // glider: lie flat
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), v = this.vel, dead = this.state === 'dead';
     const st = this._st || (this._st = {});
     st.mx = dead ? 0 : v[0] * fz - v[2] * fx; st.mz = dead ? 0 : v[0] * fx + v[2] * fz; // local left / forward speed
@@ -2230,6 +2231,7 @@ class Player {
   }
   updateModel() {
     M4.yawPos(this.model, this.yaw, this.pos[0], this.visY, this.pos[2]);
+    if (this.gTilt > 0.01) { const T = this._gT || (this._gT = [M4.create(), M4.create()]), bank = this.kind === 'remote' ? 0 : (this.gs.bank || 0); M4.translate(T[0], 0, 1.0, 0); M4.mul(this.model, this.model, T[0]); M4.rotX(T[1], 1.2 * this.gTilt); M4.mul(this.model, this.model, T[1]); M4.rotZ(T[1], -bank * this.gTilt); M4.mul(this.model, this.model, T[1]); M4.translate(T[0], 0, -1.0, 0); M4.mul(this.model, this.model, T[0]); }
     this.anim.bonePos(this.headPos, 'Head', this.model); this.headPos[1] += 0.09;
     const hw = this._hw || (this._hw = M4.create()), t = this._t || (this._t = M4.create()), o = Assets.bi.RightHand * 16;
     for (let i = 0; i < 16; i++) hw[i] = this.anim.world[o + i];
@@ -2883,7 +2885,7 @@ const UI = {
     const g = GADGETS[me.gad], used = GAD_KEYS.filter((n) => g.keys[n]); el.style.setProperty('--gc', rgbToHex(...g.col));
     for (const n of used) { const b = $('tg' + n); b.hidden = false; b.innerHTML = `${esc(g.keys[n][2] || g.keys[n][0])}<small>${n}</small>`; }
     const row = (n) => Input.touch ? `<div><kbd>${esc(g.keys[n][0])}</kbd><span class="d">${esc(g.keys[n][1])}</span></div>` : `<div><kbd>${n}</kbd><b>${esc(g.keys[n][0])}</b><span class="d">${esc(g.keys[n][1])}</span></div>`;
-    $('gdgName').textContent = '보조 · ' + g.name; $('gdgKeys').innerHTML = (Input.touch ? '<div class="tip">오른쪽 보조 버튼으로 조작해요</div>' : '') + used.map(row).join('') + (g.tip ? `<div class="tip">${esc(Input.touch ? g.tip.replace(' · W 가속 강하 · S 감속', ' · 이동 스틱 앞 가속, 뒤 감속') : g.tip)}</div>` : '');
+    $('gdgName').textContent = '보조 · ' + g.name; $('gdgKeys').innerHTML = (Input.touch ? '<div class="tip">오른쪽 보조 버튼으로 조작해요</div>' : '') + used.map(row).join('') + (g.tip ? `<div class="tip">${esc(Input.touch ? g.tip.replace('W 기수 내림 · S 기수 올림', '이동 스틱 앞: 기수 내림, 뒤: 기수 올림') : g.tip)}</div>` : '');
     el.classList.add('big'); el.hidden = false; Snd.play('ui2');
   },
   gadgetHud(me, dt) {
@@ -3498,7 +3500,7 @@ class Weather {
 // ---------- 보조 (gadgets): a second slot beside the gun, worked with I J K L (touch: its own buttons) ----------
 // plus the map's jump pads / updraft vents, which push players around the same way
 const GADGETS = {
-  wings: { id: 1, name: '날개', col: [0.78, 0.9, 1.0], tip: '활공 중에는 시점을 돌리는 대로 부드럽게 선회 · W 가속 강하 · S 감속', keys: { I: ['날갯짓', '땅에서 누르면 붕 떠오르고, 공중에서 누르면 더 높이 · 횟수 제한 없음', '날갯짓'], J: ['왼쪽 급선회', '왼쪽으로 휙 꺾어요', '◀선회'], K: ['펼치기/접기', '펼치면 패러글라이더처럼 바람 타고 활공 (공중에서 자동으로 펼침) · 접으면 급강하', '펼침'], L: ['오른쪽 급선회', '오른쪽으로 휙 꺾어요', '선회▶'] } },
+  wings: { id: 1, name: '날개', col: [0.78, 0.9, 1.0], tip: '활공 중: 시점 방향으로 선회 · 기수를 내리면 가속, 들면 속도를 고도로 바꿔 솟구침 · 너무 느려지면 실속 · W 기수 내림 · S 기수 올림', keys: { I: ['날갯짓', '땅에서 누르면 붕 떠오르고, 활공 중에 누르면 속도·고도가 붙어요 · 횟수 제한 없음', '날갯짓'], J: ['왼쪽 급선회', '활공 중 왼쪽으로 크게 꺾어요', '◀선회'], K: ['펼치기/접기', '펼치면 패러글라이더처럼 바람 타고 활공 (공중에서 자동으로 펼침) · 접으면 급강하', '펼침'], L: ['오른쪽 급선회', '활공 중 오른쪽으로 크게 꺾어요', '선회▶'] } },
   grapple: { id: 2, name: '그래플러', col: [1.0, 0.72, 0.25], keys: { I: ['발사', '조준점에 갈고리를 걸고 끌려가요 · 한 번 더 누르면 놓기', '발사'], K: ['끊기', '줄을 끊고 그 자리에서 떨어져요', '끊기'] } },
   jetpack: { id: 3, name: '제트팩', col: [1.0, 0.48, 0.2], keys: { I: ['상승', '누르는 동안 위로 날아요 (연료 소모)', '상승'], J: ['왼쪽 분사', '누르는 동안 왼쪽으로', '◀분사'], K: ['내려찍기', '공중에서 땅을 내려찍어 주변 적에게 피해', '찍기'], L: ['오른쪽 분사', '누르는 동안 오른쪽으로', '분사▶'] } },
   dash: { id: 4, name: '대시 부츠', col: [0.38, 1.0, 0.72], keys: { I: ['앞 대시', '앞으로 순간 돌진 · 2번까지 충전', '▲대시'], J: ['왼쪽 대시', '왼쪽으로 순간 돌진', '◀대시'], K: ['뒤 대시', '뒤로 순간 돌진', '▼대시'], L: ['오른쪽 대시', '오른쪽으로 순간 돌진', '대시▶'] } },
@@ -3534,23 +3536,31 @@ const Gad = {
       // flap: no limit (short beat cooldown); from the ground it pops you up, in the air it climbs, fading out high above the ground
       if (hit('I') && s.cd <= 0) {
         s.cd = 0.28; s.open = true; p.padFly = false; s.flapT = 0.42; Snd.play('flap', p.pos, 0.9); this.puff(p, 8, 0);
-        if (p.grounded) { v[1] = 9.5; v[0] += fx * 2; v[2] += fz * 2; p.grounded = false; }
-        else { const alt = p.pos[1] - G.map.groundY(p.pos[0], p.pos[2], p.pos[1]), kk = clamp(1 - (alt - 14) / 7, 0, 1); v[1] = Math.min(Math.max(v[1], -1) + 7 * kk, 8.5); v[0] += fx * 1.2; v[2] += fz * 1.2; }
+        if (p.grounded) { v[1] = 11; v[0] += fx * 3; v[2] += fz * 3; p.grounded = false; }
+        else { const alt = p.pos[1] - G.map.groundY(p.pos[0], p.pos[2], p.pos[1]), kk = clamp(1 - (alt - 14) / 7, 0, 1); s.gl = false; v[1] = Math.min(Math.max(v[1], -1) + 7.5 * kk, 9); v[0] += fx * 1.2; v[2] += fz * 1.2; /* a beat lifts you; the glide resumes at the top with your speed */ }
       }
       if (hit('K')) { s.open = !s.open; Snd.play('flap', p.pos, 0.5); }
-      for (const [n, sg] of [['J', -1], ['L', 1]]) if (hit(n) && !p.grounded && s.dashT <= 0) { const sp = Math.max(9, Math.hypot(v[0], v[2])); v[0] = rx * sg * sp * 0.8 + fx * sp * 0.6; v[2] = rz * sg * sp * 0.8 + fz * sp * 0.6; s.dashT = 0.5; s.flapT = 0.3; Snd.play('flap', p.pos, 0.8); this.puff(p, 6, sg); }
+      for (const [n, sg] of [['J', -1], ['L', 1]]) if (hit(n) && !p.grounded && s.dashT <= 0 && s.gl) { s.hd -= sg * 0.9; p.yaw -= sg * 0.9; s.V = Math.max(6, s.V - 1); s.dashT = 0.5; s.flapT = 0.3; Snd.play('flap', p.pos, 0.8); this.puff(p, 6, sg); }
+      else if (hit(n) && !p.grounded && s.dashT <= 0) { const sp = Math.max(9, Math.hypot(v[0], v[2])); v[0] = rx * sg * sp * 0.8 + fx * sp * 0.6; v[2] = rz * sg * sp * 0.8 + fz * sp * 0.6; s.dashT = 0.5; s.flapT = 0.3; Snd.play('flap', p.pos, 0.8); this.puff(p, 6, sg); }
       if (p.grounded) s.open = true; // landing re-opens for the next take-off
-      // paraglide: once airborne and past the climb, the wings hold you on the wind
-      if (!p.grounded && s.open && v[1] < 1.2) {
+      // glider: once airborne and past the climb you fly on energy - nose down builds speed, nose up trades it for height,
+      // too slow and the nose drops (stall). steer by looking; the body lies flat and banks into turns
+      const canGlide = !p.grounded && s.open && (s.gl || v[1] < 1.2);
+      if (canGlide) {
         s.glide = true; gm = 0.001; p.padFly = false; p.dashT = Math.max(p.dashT || 0, 0.05);
-        const f = inp.f || 0, dive = clamp(-p.pitch * 1.4, -0.6, 1) + (f > 0.1 ? 0.8 : 0), flare = f < -0.1 ? 1 : 0;
-        const tSpeed = clamp(10.5 + dive * 6 - flare * 4.5, 5.5, 18), tSink = clamp(1.6 + Math.max(0, dive) * 3.4 - flare * 0.5 - Math.max(0, -dive) * 0.4, 0.9, 5.5);
-        let sp = Math.hypot(v[0], v[2]), hd = sp > 0.5 ? Math.atan2(v[0], v[2]) : p.yaw;
-        let dh = p.yaw - hd; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); hd += clamp(dh, -2.4 * dt, 2.4 * dt); // smooth turns toward where you look
-        sp += (tSpeed - sp) * (1 - Math.exp(-1.4 * dt)); v[0] = Math.sin(hd) * sp; v[2] = Math.cos(hd) * sp;
-        v[1] += (-tSink - v[1]) * (1 - Math.exp(-2.6 * dt));
-        s.bank = clamp(dh * 1.2, -0.7, 0.7);
-      } else s.bank = 0;
+        const hs = Math.hypot(v[0], v[2]);
+        if (!s.gl) { s.gl = true; s.V = Math.max(10, Math.hypot(hs, v[1])); s.gam = clamp(Math.atan2(v[1], Math.max(hs, 0.1)), -0.9, 0.3); s.hd = hs > 0.5 ? Math.atan2(v[0], v[2]) : p.yaw; }
+        else { const real = Math.hypot(hs, v[1]); if (real < s.V - 1.5) s.V = Math.max(5, real); } // hit something: the energy is gone
+        const f = inp.f || 0;
+        let gt = clamp(p.pitch * 0.9 - 0.12 - (f > 0.1 ? 0.35 : 0) + (f < -0.1 ? 0.3 : 0), -1.1, 0.45);
+        if (s.V < 8) gt = Math.min(gt, -0.25 - (8 - s.V) * 0.12);
+        s.gam += clamp(gt - s.gam, -1.6 * dt, 1.6 * dt);
+        let dh = p.yaw - s.hd; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); const turn = clamp(dh * 2.2, -1.9, 1.9); s.hd += turn * dt;
+        s.V += (-23 * Math.sin(s.gam) - 0.013 * s.V * s.V - Math.abs(turn) * 0.6) * dt; s.V = clamp(s.V, 5, 34);
+        const cg = Math.cos(s.gam); v[0] = Math.sin(s.hd) * cg * s.V; v[2] = Math.cos(s.hd) * cg * s.V; v[1] = Math.sin(s.gam) * s.V;
+        s.bank = damp(s.bank || 0, clamp(turn * 0.45, -0.75, 0.75), 6, dt);
+        if (p === G.me) { s.sndT -= dt; if (s.sndT <= 0) { s.sndT = 0.12; Snd.play('jet', p.pos, clamp((s.V - 8) / 34, 0.08, 0.45)); } }
+      } else { s.bank = damp(s.bank || 0, 0, 8, dt); s.gl = false; }
     } else if (k === 'grapple') {
       if (s.hook) {
         s.hookT += dt; const h = s.hook, cx = h[0] - p.pos[0], cy = h[1] - (p.pos[1] + 1.1), cz = h[2] - p.pos[2], d = Math.hypot(cx, cy, cz) || 1;
@@ -3675,8 +3685,8 @@ const Gad = {
     const sp = bone('Spine2', this._v || (this._v = [0, 0, 0])), dt = clamp(G.now - (s.drawT || G.now), 0, 0.05); s.drawT = G.now;
     if (s.key === 'wings') {
       const open = (f & 3) || (f & 32) ? 1 : 0; s.spread = damp(s.spread, open, open ? 12 : 5, dt); s.beat += dt * ((f & 2) ? 22 : (f & 1) ? 3 : 1.4);
-      const flap = (f & 2) ? Math.sin(s.beat) * 0.6 : (f & 1) ? Math.sin(s.beat) * 0.05 : Math.sin(s.beat) * 0.03, lift = lerp(-0.55, 0.12, s.spread) + flap, sweep = lerp(1.4, 0.18, s.spread), sz = lerp(0.62, 1, s.spread);
-      if (!fpv) { const c = p.c1, t = [c[0] * 0.5 + 0.75, c[1] * 0.5 + 0.75, c[2] * 0.5 + 0.75]; const bk = (s.bank || 0) * s.spread; part(this.M.wingL, sp[0] + 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', sweep], ['rotZ', lift + bk], ['S', sz * 1.15]], t, 0.25); part(this.M.wingR, sp[0] - 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', -sweep], ['rotZ', -lift + bk], ['S', sz * 1.15]], t, 0.25); }
+      const flap = (f & 2) ? Math.sin(s.beat) * 0.6 : (f & 1) ? Math.sin(s.beat) * 0.05 : Math.sin(s.beat) * 0.03, lift = lerp(-0.55, 0.12, s.spread) + flap, sweep = lerp(1.4, (f & 1) ? 0.05 : 0.18, s.spread), sz = lerp(0.62, 1, s.spread);
+      if (!fpv) { const c = p.c1, t = [c[0] * 0.5 + 0.75, c[1] * 0.5 + 0.75, c[2] * 0.5 + 0.75]; const bk = (s.bank || 0) * s.spread; part(this.M.wingL, sp[0] + 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', sweep], ['rotZ', lift + bk], ['S', sz * ((f & 1) ? 1.4 : 1.15)]], t, 0.25); part(this.M.wingR, sp[0] - 0.06, sp[1] + 0.1, sp[2] - 0.15, [['rotY', -sweep], ['rotZ', -lift + bk], ['S', sz * ((f & 1) ? 1.4 : 1.15)]], t, 0.25); }
       if ((f & 1) && G.frame % 3 === 0) { const wp = [0, 0, 0]; for (const sg of [-1, 1]) { M4.point(wp, p.model, sg * 1.25, sp[1] + 0.15, sp[2] - 0.3); FX.spawn({ x: wp[0], y: wp[1], z: wp[2], vy: 0.3, life: 0.5, s0: 0.05, s1: 0.0, c: [1.6, 1.8, 2.2], a: 0.6 }); } }
     } else if (s.key === 'jetpack') {
       if (!fpv) part(this.M.pack, sp[0], sp[1] - 0.02, sp[2] - 0.2, null, null, 0.1);
@@ -4071,8 +4081,14 @@ const G = {
     FX.update(dt);
     R.pulse[2] += dt * 26; R.pulse[3] = Math.max(0, R.pulse[3] - dt * 1.5); R.post.damage = Math.max(0, R.post.damage - dt * 0.9); R.post.flash = Math.max(0, R.post.flash - dt * 1.4);
     this.camKick = damp(this.camKick, 0, 9, dt);
-    this.updateCamera(dt); this.render(); UI.update(dt);
+    this.updateCamera(dt); this.glideCam(); this.render(); UI.update(dt);
     Snd.wind(me && me.state === 'drop' && this.screen === 'play' ? clamp(-me.vel[1] / 30, 0, 1) : 0);
+  },
+  glideCam() {
+    const me = this.me, c = this.cam; if (!me || !me.gs || me.state !== 'live' || this.screen !== 'play') return; const s = me.gs;
+    const k = me.gTilt || 0; if (k < 0.01) return; const b = (s.bank || 0) * 0.45 * k, rx = -Math.cos(me.yaw), rz = Math.sin(me.yaw);
+    c.up[0] = -rx * Math.sin(b); c.up[1] = Math.cos(b); c.up[2] = -rz * Math.sin(b);
+    if (s.gl) c.fov *= 1 + clamp(((s.V || 14) - 14) / 60, 0, 0.2) * k;
   },
   updateCamera(dt) {
     const c = this.cam, asp = innerWidth / Math.max(innerHeight, 1), me = this.me; c.up[0] = 0; c.up[1] = 1; c.up[2] = 0; c.near = 0.12; R.post.vig = 0.7; this.eyeOK = false; this.fpv = false; this.vmOK = false; this.zoomNow = 1;

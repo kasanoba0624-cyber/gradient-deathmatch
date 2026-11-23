@@ -433,33 +433,110 @@ vec3 applyFog(vec3 c, vec3 wp){
 
 const SHADERS = {
   mapV: `#version 300 es
-layout(location=0) in vec3 aPos; layout(location=1) in vec3 aN; layout(location=2) in vec2 aUV; layout(location=3) in vec2 aSize; layout(location=4) in float aShade;
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aN; layout(location=2) in vec2 aUV; layout(location=3) in vec2 aSize; layout(location=4) in float aShade; layout(location=5) in float aMat;
 uniform mat4 uVP; uniform vec3 uOff;
-out vec3 vWP; out vec3 vLP; out vec3 vN; out vec2 vUV; out vec2 vSize; out float vShade;
-void main(){ vLP = aPos; vWP = aPos + uOff; vN = aN; vUV = aUV; vSize = aSize; vShade = aShade; gl_Position = uVP * vec4(vWP, 1.0); }`,
+out vec3 vWP; out vec3 vLP; out vec3 vN; out vec2 vUV; out vec2 vSize; out float vShade; flat out int vMat;
+void main(){ vLP = aPos; vWP = aPos + uOff; vN = aN; vUV = aUV; vSize = aSize; vShade = aShade; vMat = int(aMat + 0.5); gl_Position = uVP * vec4(vWP, 1.0); }`,
   mapF: `#version 300 es
 precision highp float;
-in vec3 vWP; in vec3 vLP; in vec3 vN; in vec2 vUV; in vec2 vSize; in float vShade;
-uniform vec3 uBase; uniform float uTime; uniform vec4 uPulse; uniform float uMov;
+in vec3 vWP; in vec3 vLP; in vec3 vN; in vec2 vUV; in vec2 vSize; in float vShade; flat in int vMat;
+uniform vec3 uBase; uniform float uTime; uniform vec4 uPulse; uniform float uMov; uniform sampler2D uAO; uniform float uArena;
 ${GLSL_LIT}
 out vec4 o;
+float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+float fbm(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + 17.1; a *= 0.5; } return s; }
+// 1 inside a groove of half-width w around every integer of x
+float groove(float x, float w){ float d = 0.5 - abs(fract(x) - 0.5), fw = fwidth(x); return 1.0 - smoothstep(w - fw, w + fw, d); }
+// surface material: returns albedo multiplier in .rgb (tinted), emissive in em
+vec3 material(int m, vec3 n, vec2 q, float top, vec2 sz, out vec3 em){
+  em = vec3(0.0);
+  vec3 tint; float k = 1.0, mixT = 0.6;
+  if (m == 1) { // concrete: panels, blotches, run-off stains
+    tint = vec3(0.33, 0.33, 0.31);
+    k = 0.86 + 0.18 * fbm(q * 0.6) - 0.07 * fbm(q * 5.0);
+    float sp = top > 0.5 ? 4.0 : 3.0; k *= 1.0 - 0.28 * max(groove(q.x / sp, 0.008 * sp), groove(q.y / sp, 0.008 * sp));
+    if (top < 0.5) k *= 1.0 - 0.16 * smoothstep(0.45, 0.8, fbm(vec2(q.x * 1.7, q.y * 0.22)));
+  } else if (m == 2) { // brick / cut stone
+    tint = vec3(0.34, 0.15, 0.1);
+    if (top > 0.5) { tint = vec3(0.32, 0.29, 0.25); vec2 c = q / 0.9; vec2 ci = floor(c); k = 0.88 + 0.18 * h21(ci) - 0.06 * fbm(q * 3.0); k *= 1.0 - 0.38 * max(groove(c.x, 0.03), groove(c.y, 0.03)); }
+    else { float row = floor(q.y / 0.28); float bx = q.x / 0.62 + mod(row, 2.0) * 0.5; k = 0.82 + 0.26 * h21(vec2(floor(bx), row)) - 0.06 * fbm(q * 6.0); k *= 1.0 - 0.45 * max(groove(q.y / 0.28, 0.06), groove(bx, 0.035)); }
+  } else if (m == 3) { // metal: ribs on the sides, plates on top
+    tint = vec3(0.22, 0.27, 0.32);
+    if (top > 0.5) { k = 0.9 + 0.1 * fbm(q * 1.3); k *= 1.0 - 0.3 * max(groove(q.x / 1.2, 0.01), groove(q.y / 2.4, 0.006)); }
+    else { k = 0.84 + 0.2 * (0.5 + 0.5 * sin(q.x * 6.2832 * 3.3)); k *= 1.0 - 0.25 * groove(q.y / 2.6, 0.012); k *= 0.92 + 0.12 * fbm(q * vec2(0.4, 2.5)); }
+  } else if (m == 4) { // wooden planks
+    tint = vec3(0.3, 0.16, 0.07);
+    bool alongU = sz.x >= sz.y; vec2 w = alongU ? q : q.yx; float row = floor(w.y / 0.22);
+    float seg = floor(w.x / 1.8 + h21(vec2(row, 3.0)));
+    k = 0.8 + 0.25 * h21(vec2(row, seg)) + 0.12 * (fbm(vec2(w.x * 0.7, w.y * 14.0 + row * 3.1)) - 0.5);
+    k *= 1.0 - 0.5 * max(groove(w.y / 0.22, 0.05), groove(w.x / 1.8 + h21(vec2(row, 3.0)), 0.006));
+  } else if (m == 5) { // rock: strata and cracks
+    tint = vec3(0.24, 0.21, 0.18);
+    float f = fbm(q * 0.45);
+    if (top > 0.5) k = 0.8 + 0.3 * fbm(q * 0.9) - 0.1 * fbm(q * 6.0);
+    else { float band = sin(q.y * 3.3 + f * 5.0); k = 0.82 + 0.1 * band + 0.14 * fbm(q * vec2(1.2, 4.0)); k *= 1.0 - 0.35 * smoothstep(0.92, 0.99, abs(band)) * step(0.45, f); }
+    k *= 1.0 - 0.3 * smoothstep(0.62, 0.7, vn(q * 2.3 + 9.0)) * smoothstep(0.75, 0.7, vn(q * 2.3 + 9.0));
+  } else if (m == 6) { // foliage
+    tint = vec3(0.07, 0.19, 0.05); mixT = 0.7;
+    float a = vn(q * 7.0), b = vn(q * 17.0 + 3.0); k = 0.65 + 0.45 * a + 0.2 * b; k *= 1.0 - 0.45 * smoothstep(0.62, 0.8, vn(q * 11.0 + 7.0));
+  } else if (m == 7) { // building facade: storeys of windows, some lit
+    tint = vec3(0.31, 0.31, 0.33);
+    if (top > 0.5) { k = 0.85 + 0.15 * fbm(q * 2.0) - 0.08 * fbm(q * 9.0); }
+    else {
+      vec2 c = vec2(q.x / 2.4, (q.y - 0.4) / 3.2); vec2 ci = floor(c), f = fract(c);
+      float win = step(0.2, f.x) * step(f.x, 0.8) * step(0.28, f.y) * step(f.y, 0.82) * step(0.0, q.y - 0.4) * step(q.y, sz.y - 0.6);
+      float frame = step(0.16, f.x) * step(f.x, 0.84) * step(0.24, f.y) * step(f.y, 0.86) * (1.0 - win);
+      k = 0.86 + 0.1 * fbm(q * 0.8) + 0.12 * frame;
+      if (win > 0.5) { tint = vec3(0.04, 0.06, 0.09); mixT = 0.9; k = 0.9 + 0.3 * f.y; float lit = step(0.72, h21(ci + 7.0)); em = vec3(1.0, 0.72, 0.38) * lit * 0.55 * (0.7 + 0.3 * h21(ci + 1.0)); }
+    }
+  } else if (m == 8) { // stone paving
+    tint = vec3(0.34, 0.32, 0.28);
+    if (top > 0.5) { float row = floor(q.y / 1.1); vec2 c = vec2(q.x / 1.1 + mod(row, 2.0) * 0.5, q.y / 1.1); k = 0.86 + 0.18 * h21(floor(c)) - 0.1 * fbm(q * 1.6) + 0.04 * fbm(q * 9.0); k *= 1.0 - 0.42 * max(groove(c.x, 0.025), groove(c.y, 0.025)); }
+    else { k = 0.85 + 0.15 * fbm(q * 1.5); }
+  } else if (m == 9) { // grass and dirt
+    float pat = smoothstep(0.42, 0.62, fbm(q * 0.11)); tint = mix(vec3(0.24, 0.17, 0.09), vec3(0.11, 0.2, 0.05), pat); mixT = 0.62;
+    k = 0.82 + 0.2 * vn(q * 9.0) + 0.12 * fbm(q * 0.9); if (top < 0.5) tint = vec3(0.24, 0.17, 0.09);
+  } else if (m == 10) { // sand with wind ripples
+    tint = vec3(0.55, 0.42, 0.25);
+    float f = fbm(q * 0.25); k = 0.9 + 0.08 * sin(q.x * 2.2 + q.y * 0.6 + f * 7.0) + 0.08 * (f - 0.5) + 0.05 * vn(q * 14.0);
+  } else if (m == 11) { // bark
+    tint = vec3(0.15, 0.09, 0.05); k = 0.72 + 0.35 * fbm(vec2(q.x * 7.0, q.y * 0.7)); k *= 1.0 - 0.35 * smoothstep(0.55, 0.75, vn(vec2(q.x * 12.0, q.y * 1.2)));
+  } else if (m == 12) { // water: rippled, glossy-dark
+    tint = vec3(0.04, 0.12, 0.17); mixT = 0.75; float w = vn(q * 0.8 + vec2(uTime * 0.4, uTime * 0.25)) + 0.5 * vn(q * 2.1 - vec2(uTime * 0.6, 0.0));
+    k = 0.75 + 0.35 * w; em = vec3(0.05, 0.09, 0.11) * smoothstep(1.0, 1.4, w);
+  } else if (m == 13) { // asphalt with lane marks
+    tint = vec3(0.09, 0.09, 0.1); mixT = 0.75; k = 0.85 + 0.2 * vn(q * 6.0) + 0.1 * fbm(q * 0.5);
+    float lane = step(abs(fract(q.x / 12.0) - 0.5), 0.006) * step(0.5, fract(q.y / 4.0)); k += lane * 6.0;
+  } else { tint = uBase; mixT = 0.0; }
+  return mix(uBase, tint, mixT) * k;
+}
 void main(){
   vec3 n = normalize(vN);
-  vec3 alb = uBase * vShade;
+  float top = step(0.5, n.y);
   vec2 guv = abs(n.y) > 0.5 ? vLP.xz : (abs(n.x) > 0.5 ? vLP.zy : vLP.xy);
   float dist = length(vWP - uCamPos);
-  vec2 g1 = abs(fract(guv - 0.5) - 0.5) / max(fwidth(guv), vec2(1e-4));
-  float l1 = 1.0 - min(min(g1.x, g1.y), 1.0);
-  vec2 q = guv / 4.0;
-  vec2 g4 = abs(fract(q - 0.5) - 0.5) / max(fwidth(q), vec2(1e-4));
-  float l4 = 1.0 - min(min(g4.x, g4.y) * 0.7, 1.0);
-  alb *= 1.0 - 0.07 * l1 * clamp(1.0 - dist / 45.0, 0.0, 1.0) - 0.16 * l4 * clamp(1.0 - dist / 160.0, 0.0, 1.0);
+  vec3 em = vec3(0.0); vec3 alb;
+  if (vMat > 0) {
+    vec2 q = abs(n.y) > 0.5 ? vLP.xz : vec2(abs(n.x) > 0.5 ? vLP.z : vLP.x, vUV.y);
+    alb = material(vMat, n, q, top, vSize, em) * vShade;
+  } else {
+    alb = uBase * vShade;
+    vec2 g1 = abs(fract(guv - 0.5) - 0.5) / max(fwidth(guv), vec2(1e-4));
+    float l1 = 1.0 - min(min(g1.x, g1.y), 1.0);
+    vec2 q = guv / 4.0;
+    vec2 g4 = abs(fract(q - 0.5) - 0.5) / max(fwidth(q), vec2(1e-4));
+    float l4 = 1.0 - min(min(g4.x, g4.y) * 0.7, 1.0);
+    alb *= 1.0 - 0.07 * l1 * clamp(1.0 - dist / 45.0, 0.0, 1.0) - 0.16 * l4 * clamp(1.0 - dist / 160.0, 0.0, 1.0);
+  }
   vec2 e = min(vUV, vSize - vUV); float ed = min(e.x, e.y);
   float edge = 1.0 - smoothstep(0.02, 0.05 + fwidth(ed) * 1.5, ed);
   float side = step(abs(n.y), 0.5);
   float ao = mix(1.0, mix(0.62, 1.0, smoothstep(0.0, 1.8, vUV.y)), side);
-  vec3 c = lighting(vWP, n, alb) * ao;
-  c += (uBase * 0.55 + 0.06) * edge * (0.55 + 0.45 * n.y);
+  // contact shadows near the ground from the baked footprint map
+  float aoG = texture(uAO, vWP.xz / (2.0 * uArena) + 0.5).r; ao *= mix(1.0, aoG, 1.0 - smoothstep(0.0, 2.4, vWP.y));
+  vec3 c = lighting(vWP, n, alb) * ao + em;
+  c += (uBase * 0.55 + 0.06) * edge * (0.55 + 0.45 * n.y) * (vMat > 0 ? 0.35 : 1.0);
   // moving blocks: warm hazard edges + a slow stripe so they read as 'this moves'
   float stripe = step(0.5, fract((vLP.x + vLP.y + vLP.z) * 0.9 - uTime * 0.6));
   c += uMov * (vec3(1.0, 0.62, 0.15) * edge * 1.4 + vec3(0.18, 0.1, 0.02) * stripe * side);
@@ -771,6 +848,9 @@ const R = {
   },
   // generic mesh: layout = [[loc, size, type?, normalized?], ...] interleaved floats unless type given
   updateMesh(m, data) { const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, m.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, data); },
+  // 1x1 white texture (no contact-shadow map yet) and a single-channel data texture for the ground AO
+  whiteTex() { if (this._white) return this._white; const gl = this.gl, t = this._white = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([255])); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); return t; },
+  dataTex(w, h, data, old) { const gl = this.gl; if (old) gl.deleteTexture(old); const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, data); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; },
   mesh(data, layout, idx) {
     const gl = this.gl, vao = gl.createVertexArray(), buf = gl.createBuffer();
     gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
@@ -844,7 +924,8 @@ const R = {
     // map
     if (sc.mapMesh) {
       P = this.progs.map; gl.useProgram(P.p); this.setLit(P); gl.uniform3fv(P.u('uBase'), e.base); gl.uniform1f(P.u('uTime'), this.time); gl.uniform4fv(P.u('uPulse'), this.pulse);
-      gl.uniform3f(P.u('uOff'), 0, 0, 0); gl.uniform1f(P.u('uMov'), 0);
+      gl.uniform3f(P.u('uOff'), 0, 0, 0); gl.uniform1f(P.u('uMov'), 0); gl.uniform1f(P.u('uArena'), ARENA);
+      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, sc.aoTex || this.whiteTex()); gl.uniform1i(P.u('uAO'), 6); gl.activeTexture(gl.TEXTURE0);
       gl.bindVertexArray(sc.mapMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, sc.mapMesh.count); this.drawCalls++;
       if (sc.movers && sc.movers.length) { gl.uniform1f(P.u('uMov'), 1); for (const m of sc.movers) { gl.uniform3fv(P.u('uOff'), m.off); gl.bindVertexArray(m.mesh.vao); gl.drawArrays(gl.TRIANGLES, 0, m.mesh.count); this.drawCalls++; } gl.uniform3f(P.u('uOff'), 0, 0, 0); gl.uniform1f(P.u('uMov'), 0); }
     }
@@ -1082,11 +1163,10 @@ class Animator {
 
 // ==== 04_map.js ====
 // ---------- map: procedural angular arena, collision, raycast, nav grid ----------
-const ARENA = 48;          // half size in metres; invisible barrier sits here
+let ARENA = 48;            // half size in metres; invisible barrier sits here (each map kind may set its own)
 const STEP = 0.56;         // max auto step-up
 const P_RADIUS = 0.36, P_HEIGHT = 1.8;
 const THEMES = [0.58, 0.02, 0.08, 0.14, 0.33, 0.46, 0.52, 0.66, 0.76, 0.86, 0.94];
-const A_ = ARENA;
 const MAP_KINDS = [ // each round picks one: different layouts, not just a different colour
   { id: 'plaza', name: '중앙 광장', sat: 1, fog: 1 },
   { id: 'city', name: '도시 블록', sat: 0.7, fog: 1.8 },
@@ -1113,21 +1193,22 @@ const GIMMICKS = {
   bunker: { name: '자동문', desc: '방 사이 문이 저절로 열리고 닫혀요' },
 };
 
+const MAT = { grid: 0, concrete: 1, brick: 2, metal: 3, wood: 4, rock: 5, foliage: 6, facade: 7, paving: 8, ground: 9, sand: 10, bark: 11, water: 12, asphalt: 13 };
 class GameMap {
   constructor(seed) {
     this.seed = seed >>> 0; this.cols = []; this.deco = []; this.movers = []; this.pads = []; this.vents = [];
     const rng = this.rng = mulberry32(this.seed * 2654435761 >>> 0);
     this.hue = THEMES[Math.floor(rng() * THEMES.length)] + (rng() - 0.5) * 0.03;
     this.sunAz = rng() * TAU; this.sunEl = 0.62 + rng() * 0.35;
-    this.gen(rng); const g = GIMMICKS[this.kind]; if (this['gim_' + this.kind]) this['gim_' + this.kind](rng); this.gimName = g ? g.name : ''; this.gimDesc = g ? g.desc : ''; this.updateMovers(0); this.buildNav(); this.weather = Weather.pick(rng);
+    this.gen(rng); const g = GIMMICKS[this.kind]; if (this['gim_' + this.kind]) this['gim_' + this.kind](rng); this.gimName = g ? g.name : ''; this.gimDesc = g ? g.desc : ''; this.updateMovers(0); this.dress(); this.buildNav(); this.buildAO(); this.weather = Weather.pick(rng);
   }
   box(x0, y0, z0, x1, y1, z1, shade) { const c = { x0: Math.min(x0, x1), y0, z0: Math.min(z0, z1), x1: Math.max(x0, x1), y1, z1: Math.max(z0, z1), ramp: -1, shade: shade || 1 }; this.cols.push(c); return c; }
   gen(rng) {
-    const A = ARENA;
+    let k = MAP_KINDS[Math.floor(rng() * MAP_KINDS.length)]; if (typeof window !== 'undefined' && window.__mapKind) k = MAP_KINDS.find((m) => m.id === window.__mapKind) || k; this.kind = k.id; this.kindName = k.name;
+    ARENA = this.size = k.size || 48; const A = ARENA;
     this.box(-A, -3, -A, A, 0, A, 1).floor = true;
     // floating slab underside (decor only)
     for (let i = 1; i <= 5; i++) { const s = A - i * 6.5; this.deco.push({ x0: -s, y0: -3 - i * 3.2, z0: -s, x1: s, y1: -3 - (i - 1) * 3.2, z1: s, ramp: -1, shade: 0.9 - i * 0.07 }); }
-    let k = MAP_KINDS[Math.floor(rng() * MAP_KINDS.length)]; if (typeof window !== 'undefined' && window.__mapKind) k = MAP_KINDS.find((m) => m.id === window.__mapKind) || k; this.kind = k.id; this.kindName = k.name;
     this['gen_' + k.id](rng);
   }
   // shared helpers for the layouts: everything is placed once and mirrored through the centre (fair spawns both sides)
@@ -1140,11 +1221,11 @@ class GameMap {
         for (let r = 0; r < rot; r++) { [x0, z0] = [-z0, x0];[x1, z1] = [-z1, x1]; if (ramp >= 0) ramp = [2, 3, 1, 0][ramp]; }
         x0 += cx; x1 += cx; z0 += cz; z1 += cz;
         if (pass) { x0 = -x0; x1 = -x1; z0 = -z0; z1 = -z1; if (ramp >= 0) ramp ^= 1; }
-        const c = this.box(x0, p.y0, z0, x1, p.y1, z1, p.shade); c.ramp = ramp; if (p.over) c.over = true;
+        const c = this.box(x0, p.y0, z0, x1, p.y1, z1, p.shade); c.ramp = ramp; if (p.over) c.over = true; if (p.mat) c.mat = p.mat;
       }
     };
-    const B = (x0, y0, z0, x1, y1, z1, shade) => ({ x0, y0, z0, x1, y1, z1, shade: shade || R(0.9, 1.1) });
-    const Rp = (x0, y0, z0, x1, y1, z1, ramp) => ({ x0, y0, z0, x1, y1, z1, ramp, shade: 1.06 });
+    const B = (x0, y0, z0, x1, y1, z1, shade, mat) => ({ x0, y0, z0, x1, y1, z1, shade: shade || R(0.9, 1.1), mat });
+    const Rp = (x0, y0, z0, x1, y1, z1, ramp, mat) => ({ x0, y0, z0, x1, y1, z1, ramp, shade: 1.06, mat });
     const cellC = (i) => (i - N / 2 + 0.5) * CELL;
     const mark = (cx, cz, w, d) => { d = d || w; for (let a = 0; a < w; a++) for (let b = 0; b < d; b++) { const x = cx + a, z = cz + b; occ[z * N + x] = 1; occ[(N - 1 - z) * N + (N - 1 - x)] = 1; } };
     const free = (cx, cz, w, d) => { d = d || w; for (let a = 0; a < w; a++) for (let b = 0; b < d; b++) { const x = cx + a, z = cz + b; if (x < 0 || z < 0 || x >= N || z >= N || occ[z * N + x] || occ[(N - 1 - z) * N + (N - 1 - x)]) return false; if ((N - 1 - x) >= cx && (N - 1 - x) < cx + w && (N - 1 - z) >= cz && (N - 1 - z) < cz + d) return false; } return true; };
@@ -1210,7 +1291,7 @@ class GameMap {
     const car = (x, z, along) => { const l = 2.1, w = 0.9; return along ? B(x - w, 0, z - l, x + w, 1.25, z + l, 0.8) : B(x - l, 0, z - w, x + l, 1.25, z + w, 0.8); };
     for (let bz = 0; bz < 6; bz++) for (let bx = 0; bx < 6; bx++) {
       if (bz * 6 + bx >= 18) continue; // the other half comes from the mirror
-      const cx = -A_ + S / 2 + bx * S, cz = -A_ + S / 2 + bz * S, h = (S - st) / 2, o = [];
+      const cx = -ARENA + S / 2 + bx * S, cz = -ARENA + S / 2 + bz * S, h = (S - st) / 2, o = [];
       const central = (bx === 2 || bx === 3) && (bz === 2 || bz === 3);
       if (central) { // town square: fountain ring + low planters
         if (bx === 2 && bz === 2) { o.push(B(S / 2 - 3.2, 0, S / 2 - 3.2, S / 2, 0.9, S / 2 - 2.6)); o.push(B(S / 2 - 3.2, 0, S / 2 - 3.2, S / 2 - 2.6, 0.9, S / 2)); o.push(B(S / 2 - 0.6, 0, S / 2 - 0.6, S / 2, R(4, 7), S / 2, 1.15)); o.push(B(-3, 0, -1, -1, 1.0, 1)); }
@@ -1272,9 +1353,9 @@ class GameMap {
     all.push(B(-9, 0, -1.2, -7.8, 11, 1.2, 0.8), Object.assign(B(-9, 11, -1.4, 0, 12.2, 1.4, 0.8), { over: true }), B(-4, 0, -4, -2.6, 1.1, -2.4));
     for (let row = 0; row < 6; row++) {
       const z = -40 + row * 8; if (Math.abs(z) < 6) continue; // keep the middle lane open
-      let x = -A_ + R(1, 4);
-      while (x < A_ - 6) {
-        const len = rng() < 0.5 ? 6 : 12; if (x + len > A_ - 2) break; const cx = x + len / 2;
+      let x = -ARENA + R(1, 4);
+      while (x < ARENA - 6) {
+        const len = rng() < 0.5 ? 6 : 12; if (x + len > ARENA - 2) break; const cx = x + len / 2;
         if (Math.abs(cx) < 9 && Math.abs(z) < 12) { x += len + R(3, 5); continue; }
         const lv = rng() < 0.45 ? 1 : rng() < 0.75 ? 2 : 3; for (let l = 0; l < lv; l++) all.push(ct(cx + (l ? R(-0.4, 0.4) : 0), z, len - (l ? R(0, 1) : 0), l));
         if (lv >= 2 && rng() < 0.55) all.push(Rp(cx - len / 2 + 0.2, 0, z + W, cx - len / 2 + 3, H, z + W + H * 2.1, 3)); // ramp to the 1st tier
@@ -1352,12 +1433,12 @@ class GameMap {
     for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI, r = 5.5; o.push(B(Math.cos(a) * r - 0.5, 0, Math.sin(a) * r - 0.4, Math.cos(a) * r + 0.5, R(2.2, 3.4), Math.sin(a) * r + 0.4, 1.12)); }
     let n = 0, tries = 0; const pts = [];
     while (n < 70 && tries++ < 900) {
-      const x = R(-A_ + 2, A_ - 2), z = R(-A_ + 2, -0.5); if (Math.hypot(x, z) < 10) continue; if (pts.some((q) => Math.hypot(q[0] - x, q[1] - z) < 4.2) || pts.some((q) => Math.hypot(-q[0] - x, -q[1] - z) < 4.2)) continue; pts.push([x, z]); n++;
+      const x = R(-ARENA + 2, ARENA - 2), z = R(-ARENA + 2, -0.5); if (Math.hypot(x, z) < 10) continue; if (pts.some((q) => Math.hypot(q[0] - x, q[1] - z) < 4.2) || pts.some((q) => Math.hypot(-q[0] - x, -q[1] - z) < 4.2)) continue; pts.push([x, z]); n++;
       const t = R(0.32, 0.55), h = R(5, 9); o.push(B(x - t, 0, z - t, x + t, h, z + t, R(0.8, 0.95)));
       if (rng() < 0.7) { const c = R(1.6, 2.6), cv = B(x - c, h - 0.2, z - c, x + c, h + R(0.8, 1.6), z + c, R(1.05, 1.2)); cv.over = true; o.push(cv); }
     }
-    for (let k = 0; k < 9; k++) { const x = R(-A_ + 4, A_ - 4), z = R(-A_ + 4, -3); if (Math.hypot(x, z) < 9) continue; const l = R(1.8, 3.2); o.push(rng() < 0.5 ? B(x - l, 0, z - 0.45, x + l, 0.85, z + 0.45, 0.85) : B(x - 0.45, 0, z - l, x + 0.45, 0.85, z + l, 0.85)); }
-    for (let k = 0; k < 8; k++) { const x = R(-A_ + 4, A_ - 4), z = R(-A_ + 4, -3), s = R(0.8, 1.6); if (Math.hypot(x, z) < 9) continue; o.push(B(x - s, 0, z - s, x + s, R(0.9, 1.8), z + s, 0.88)); }
+    for (let k = 0; k < 9; k++) { const x = R(-ARENA + 4, ARENA - 4), z = R(-ARENA + 4, -3); if (Math.hypot(x, z) < 9) continue; const l = R(1.8, 3.2); o.push(rng() < 0.5 ? B(x - l, 0, z - 0.45, x + l, 0.85, z + 0.45, 0.85) : B(x - 0.45, 0, z - l, x + 0.45, 0.85, z + l, 0.85)); }
+    for (let k = 0; k < 8; k++) { const x = R(-ARENA + 4, ARENA - 4), z = R(-ARENA + 4, -3), s = R(0.8, 1.6); if (Math.hypot(x, z) < 9) continue; o.push(B(x - s, 0, z - s, x + s, R(0.9, 1.8), z + s, 0.88)); }
     place(o, 0, 0, 0);
   }
   // 10) bunker: a grid of concrete rooms with doorways, an open yard in the middle
@@ -1373,6 +1454,62 @@ class GameMap {
       else if (rng() < 0.6) o.push(B(cellC(i) - 1.2, 0, cellC(j) - 1.2, cellC(i) + 1.2, R(1, 1.5), cellC(j) + 1.2, 1.02));
     }
     place(o, 0, 0, 0);
+  }
+  // ---------- look: materials per surface, trims, ground contact shadows
+  dress() {
+    const K = this.kind, M = MAT, floorMat = { plaza: M.paving, city: M.asphalt, canyon: M.sand, yard: M.concrete, temple: M.paving, maze: M.ground, towers: M.ground, arena: M.sand, forest: M.ground, bunker: M.concrete, mall: M.asphalt, harbor: M.concrete, station: M.asphalt, fortress: M.ground, factory: M.concrete };
+    for (const c of this.cols) {
+      if (c.mat) continue;
+      if (c.floor) { c.mat = floorMat[K] || M.paving; continue; }
+      const w = c.x1 - c.x0, d = c.z1 - c.z0, h = c.y1 - c.y0, thin = Math.min(w, d), long = Math.max(w, d);
+      let m = M.concrete;
+      if (K === 'canyon') m = M.rock;
+      else if (K === 'city') m = c.ramp >= 0 ? M.concrete : c.y1 >= 4 ? M.facade : c.y1 >= 1.7 ? M.brick : M.concrete;
+      else if (K === 'yard') m = c.mv ? M.metal : (h >= 2.2 && long >= 4.5) ? M.metal : h < 1.4 ? M.wood : (thin < 1.3 ? M.metal : M.concrete);
+      else if (K === 'temple' || K === 'arena' || K === 'towers' || K === 'plaza') m = c.mv ? (K === 'plaza' ? M.concrete : M.brick) : c.ramp >= 0 ? M.paving : (h < 1.4 && K !== 'temple' ? M.concrete : M.brick);
+      else if (K === 'maze') m = c.mv ? M.foliage : (thin <= 0.7 && h > 1.5) ? M.foliage : M.brick;
+      else if (K === 'forest') m = c.over ? M.foliage : (thin < 1.2 && h > 3) ? M.bark : (h < 1 && long > 2.5) ? M.bark : M.rock;
+      else if (K === 'bunker') m = c.mv ? M.metal : h < 1.6 ? M.wood : M.concrete;
+      if (c.mv && K === 'city') m = M.metal; if (c.mv && K === 'arena') m = M.metal;
+      c.mat = m;
+    }
+    // trims: roof lips on buildings and tall stone blocks, plinths at the foot of facades
+    const trims = [];
+    for (const c of this.cols) {
+      if (c.floor || c.mv || c.over || c.ramp >= 0) continue; const h = c.y1 - c.y0, w = c.x1 - c.x0, d = c.z1 - c.z0;
+      if ((c.mat === M.facade || c.mat === M.brick || c.mat === M.concrete) && h >= 2.4 && Math.min(w, d) >= 1.2) {
+        const o = c.mat === M.facade ? 0.14 : 0.07; trims.push({ x0: c.x0 - o, y0: c.y1 - 0.02, z0: c.z0 - o, x1: c.x1 + o, y1: c.y1 + (c.mat === M.facade ? 0.24 : 0.12), z1: c.z1 + o, ramp: -1, shade: (c.shade || 1) * 1.12, mat: c.mat === M.facade ? M.concrete : M.paving });
+        if (c.y0 < 0.05 && c.mat === M.facade) trims.push({ x0: c.x0 - 0.07, y0: 0, z0: c.z0 - 0.07, x1: c.x1 + 0.07, y1: 0.45, z1: c.z1 + 0.07, ramp: -1, shade: (c.shade || 1) * 0.85, mat: M.concrete });
+        if (c.mat === M.facade && w * d > 30 && this.rng() < 0.7) { const ax = lerp(c.x0 + 1, c.x1 - 2.2, this.rng()), az = lerp(c.z0 + 1, c.z1 - 2.2, this.rng()); trims.push({ x0: ax, y0: c.y1, z0: az, x1: ax + 1.4, y1: c.y1 + 0.9, z1: az + 1.1, ramp: -1, shade: 0.9, mat: M.metal }); }
+      }
+    }
+    for (const t of trims) this.deco.push(t);
+    // ground dressing (decor only): sidewalks round buildings, rubble round rocks, grass and earth beds
+    let lay = 0; const flat = (x0, z0, x1, z1, mat, h, shade) => { lay++; this.deco.push({ x0, y0: -0.3, z0, x1, y1: h + lay * 0.0004, z1, ramp: -1, shade: shade || 1, mat }); };
+    const r = mulberry32(this.seed ^ 0x5eed);
+    for (const c of this.cols) {
+      if (c.floor || c.mv || c.over || c.y0 > 0.05) continue;
+      if (K === 'city' && c.mat === M.facade) flat(c.x0 - 2.2, c.z0 - 2.2, c.x1 + 2.2, c.z1 + 2.2, M.paving, 0.07, 1.05);
+      else if (K === 'canyon' && c.y1 - c.y0 > 1) flat(c.x0 - 1.2 - r() * 1.5, c.z0 - 1.2 - r() * 1.5, c.x1 + 1.2 + r() * 1.5, c.z1 + 1.2 + r() * 1.5, M.rock, 0.02, 0.85);
+      else if (K === 'forest' && c.mat === M.bark) flat(c.x0 - 1.5, c.z0 - 1.5, c.x1 + 1.5, c.z1 + 1.5, M.ground, 0.015, 0.8);
+    }
+    if (['plaza', 'temple', 'towers', 'arena', 'yard'].includes(K)) for (let i = 0; i < 26; i++) { const x = (r() * 2 - 1) * (ARENA - 8), z = (r() * 2 - 1) * (ARENA - 8), w = 2 + r() * 5, d = 2 + r() * 5; if (this.heightAt(x, z) > 0.01 || this.heightAt(x + w, z + d) > 0.01) continue; flat(x, z, x + w, z + d, K === 'yard' ? M.asphalt : K === 'arena' ? M.ground : M.ground, 0.015, 0.9); }
+    for (const dc of this.deco) if (!dc.mat) dc.mat = M.concrete;
+  }
+  // top-down footprint map, blurred: walls and blocks darken the ground right around them
+  buildAO() {
+    const R0 = this.aoN = 256, A = ARENA, px = R0 / (2 * A), occ = new Float32Array(R0 * R0);
+    for (const c of this.cols) {
+      if (c.floor || c.over || c.mv || c.y0 > 0.6 || c.y1 < 0.25) continue; const k = clamp((c.y1 - 0.1) / 1.6, 0.3, 1);
+      const x0 = clamp(Math.floor((c.x0 + A) * px), 0, R0 - 1), x1 = clamp(Math.ceil((c.x1 + A) * px), 0, R0 - 1), z0 = clamp(Math.floor((c.z0 + A) * px), 0, R0 - 1), z1 = clamp(Math.ceil((c.z1 + A) * px), 0, R0 - 1);
+      for (let z = z0; z < z1; z++) for (let x = x0; x < x1; x++) occ[z * R0 + x] = Math.max(occ[z * R0 + x], k);
+    }
+    const blur = (src, r) => { const tmp = new Float32Array(R0 * R0), out = new Float32Array(R0 * R0), n = 2 * r + 1;
+      for (let z = 0; z < R0; z++) { let s = 0; for (let x = -r; x <= r; x++) s += src[z * R0 + clamp(x, 0, R0 - 1)]; for (let x = 0; x < R0; x++) { tmp[z * R0 + x] = s / n; s += src[z * R0 + clamp(x + r + 1, 0, R0 - 1)] - src[z * R0 + clamp(x - r, 0, R0 - 1)]; } }
+      for (let x = 0; x < R0; x++) { let s = 0; for (let z = -r; z <= r; z++) s += tmp[clamp(z, 0, R0 - 1) * R0 + x]; for (let z = 0; z < R0; z++) { out[z * R0 + x] = s / n; s += tmp[clamp(z + r + 1, 0, R0 - 1) * R0 + x] - tmp[clamp(z - r, 0, R0 - 1) * R0 + x]; } }
+      return out; };
+    const r = Math.max(2, Math.round(1.1 * px)), b = blur(blur(occ, r), r), out = this.aoData = new Uint8Array(R0 * R0);
+    for (let i = 0; i < R0 * R0; i++) out[i] = Math.round(255 * clamp(1 - 0.62 * b[i], 0, 1));
   }
   // ---------- gimmicks: moving blocks driven by the shared round clock (identical on every client), jump pads, updraft vents
   // mover: base box + displacement d reached at s=1; s ping-pongs 0→1→0 over `per` s, resting `hold` (fraction) at each end.
@@ -1550,45 +1687,77 @@ class GameMap {
   // top-down height (ignores overhead lintels)
   heightAt(x, z) { let best = -1e9; for (const c of this.cols) { if (c.over || x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) continue; const t = this.topAt(c, x, z); if (t > best) best = t; } return best; }
 
-  // ----- nav grid (1 m cells)
-  buildNav() {
-    const N = this.N = ARENA * 2, h = this.h = new Float32Array(N * N), ok = this.ok = new Uint8Array(N * N);
-    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
-      const wx = x - ARENA + 0.5, wz = z - ARENA + 0.5, y = this.heightAt(wx, wz); h[z * N + x] = y; let good = 1;
-      for (const [ox, oz] of [[0.42, 0], [-0.42, 0], [0, 0.42], [0, -0.42], [0.3, 0.3], [-0.3, 0.3], [0.3, -0.3], [-0.3, -0.3]]) { if (this.heightAt(clamp(wx + ox, -ARENA + 0.01, ARENA - 0.01), clamp(wz + oz, -ARENA + 0.01, ARENA - 0.01)) - y > STEP + 0.05) { good = 0; break; } }
-      if (Math.abs(wx) > ARENA - 0.6 || Math.abs(wz) > ARENA - 0.6) good = 0;
-      ok[z * N + x] = good;
-    }
-    // reachability flood from a ground cell
-    const reach = this.reach = new Uint8Array(N * N); let start = -1;
-    for (let r = 0; r < N && start < 0; r++) for (let i = 0; i < N * N; i++) { if (ok[i] && h[i] < 0.01) { const x = i % N, z = (i / N) | 0; if (Math.abs(x - N / 2) <= r + 12 && Math.abs(z - N / 2) <= r + 12) { start = i; break; } } }
-    const st = [start]; reach[start] = 1;
-    while (st.length) { const i = st.pop(), x = i % N, z = (i / N) | 0; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue; const j = nz * N + nx; if (reach[j] || !ok[j]) continue; if (Math.abs(h[j] - h[i]) > STEP + 0.08) continue; reach[j] = 1; st.push(j); } }
-    this.spots = []; for (let i = 0; i < N * N; i++) if (reach[i]) this.spots.push(i);
-    this._g = new Float32Array(N * N); this._from = new Int32Array(N * N); this._stamp = new Uint32Array(N * N); this._closed = new Uint32Array(N * N); this._sid = 0;
+  // ----- spatial buckets (8 m) for fast point queries on big maps
+  buildBuckets() {
+    const B = this.bkN = Math.ceil(ARENA * 2 / 8), bk = this.bk = Array.from({ length: B * B }, () => []);
+    for (const c of this.cols) { if (c.mv) continue; const x0 = clamp(Math.floor((c.x0 + ARENA) / 8), 0, B - 1), x1 = clamp(Math.floor((c.x1 + ARENA) / 8), 0, B - 1), z0 = clamp(Math.floor((c.z0 + ARENA) / 8), 0, B - 1), z1 = clamp(Math.floor((c.z1 + ARENA) / 8), 0, B - 1); for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) bk[z * B + x].push(c); }
   }
-  cellOf(x, z) { const N = this.N; return clamp(Math.floor(z + ARENA), 0, N - 1) * N + clamp(Math.floor(x + ARENA), 0, N - 1); }
-  cellPos(i, out) { const N = this.N; out[0] = (i % N) - ARENA + 0.5; out[2] = ((i / N) | 0) - ARENA + 0.5; out[1] = this.h[i]; return out; }
+  colsAt(x, z) { const B = this.bkN; return this.bk[clamp(Math.floor((z + ARENA) / 8), 0, B - 1) * B + clamp(Math.floor((x + ARENA) / 8), 0, B - 1)]; }
+  // walkable tops at a point with head room, ascending (static, non-overhead boxes only)
+  surfacesAt(x, z) {
+    const L = this.colsAt(x, z), tops = [];
+    for (const c of L) { if (c.over || x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) continue; tops.push(this.topAt(c, x, z)); }
+    tops.sort((a, b) => a - b); const out = [];
+    for (const t of tops) { if (out.length && t - out[out.length - 1] < 0.3) out[out.length - 1] = t; else out.push(t); }
+    return out.filter((t) => { for (const c of L) { if (c.over || x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) continue; if (c.y0 < t + 1.75 && this.topAt(c, x, z) > t + 0.05) return false; } return true; });
+  }
+  // something solid at (x,z) between y+STEP and head height = a wall for someone standing at y
+  wallAt(x, z, y) { for (const c of this.colsAt(x, z)) { if (c.over || x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) continue; if (c.y0 < y + 1.7 && this.topAt(c, x, z) > y + STEP + 0.05) return true; } return false; }
+
+  // ----- nav: 1 m cells, up to 3 floors per cell (node = layer * NN + cell; layer 0 is the lowest walkable surface)
+  buildNav() {
+    this.buildBuckets();
+    const N = this.N = ARENA * 2, NN = this.NN = N * N, LY = this.LY = 3, h = this.h = new Float32Array(NN * LY).fill(NaN), ok = this.ok = new Uint8Array(NN * LY);
+    const off = [[0.42, 0], [-0.42, 0], [0, 0.42], [0, -0.42], [0.3, 0.3], [-0.3, 0.3], [0.3, -0.3], [-0.3, -0.3]];
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+      const wx = x - ARENA + 0.5, wz = z - ARENA + 0.5, ci = z * N + x, sf = this.surfacesAt(wx, wz), edge = Math.abs(wx) > ARENA - 0.6 || Math.abs(wz) > ARENA - 0.6;
+      const keep = sf.length > LY ? [sf[0]].concat(sf.slice(-(LY - 1))) : sf;
+      for (let l = 0; l < keep.length; l++) {
+        const y = keep[l], ni = l * NN + ci; h[ni] = y; let good = edge ? 0 : 1;
+        if (good) for (const [ox, oz] of off) { if (this.wallAt(clamp(wx + ox, -ARENA + 0.01, ARENA - 0.01), clamp(wz + oz, -ARENA + 0.01, ARENA - 0.01), y)) { good = 0; break; } }
+        ok[ni] = good;
+      }
+    }
+    // reachability flood from a ground node near the centre
+    const reach = this.reach = new Uint8Array(NN * LY); let start = -1;
+    for (let r = 0; r < N && start < 0; r++) for (let i = 0; i < NN; i++) { if (ok[i] && h[i] < 0.01) { const x = i % N, z = (i / N) | 0; if (Math.abs(x - N / 2) <= r + 12 && Math.abs(z - N / 2) <= r + 12) { start = i; break; } } }
+    if (start < 0) start = ok.findIndex((v) => v);
+    const st = [start]; reach[start] = 1;
+    while (st.length) { const i = st.pop(), ci = i % NN, x = ci % N, z = (ci / N) | 0; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue; const cj = nz * N + nx; for (let l = 0; l < LY; l++) { const j = l * NN + cj; if (reach[j] || !ok[j] || !(Math.abs(h[j] - h[i]) <= STEP + 0.08)) continue; reach[j] = 1; st.push(j); } } }
+    this.spots = []; for (let i = 0; i < NN * LY; i++) if (reach[i]) this.spots.push(i);
+    this._g = new Float32Array(NN * LY); this._from = new Int32Array(NN * LY); this._stamp = new Uint32Array(NN * LY); this._closed = new Uint32Array(NN * LY); this._sid = 0;
+  }
+  // cell (ground layer) when y is omitted, else the node on the floor at or just below y
+  cellOf(x, z, y) {
+    const N = this.N, ci = clamp(Math.floor(z + ARENA), 0, N - 1) * N + clamp(Math.floor(x + ARENA), 0, N - 1); if (y === undefined) return ci;
+    let best = ci, bh = -1e9; for (let l = 0; l < this.LY; l++) { const hh = this.h[l * this.NN + ci]; if (hh <= y + 0.9 && hh > bh) { bh = hh; best = l * this.NN + ci; } } return best;
+  }
+  cellPos(i, out) { const N = this.N, ci = i % this.NN; out[0] = (ci % N) - ARENA + 0.5; out[2] = ((ci / N) | 0) - ARENA + 0.5; out[1] = this.h[i]; if (out[1] !== out[1]) out[1] = 0; return out; }
   randomSpot(rnd, out, groundOnly) { for (let k = 0; k < 30; k++) { const i = this.spots[Math.floor((rnd ? rnd() : Math.random()) * this.spots.length)]; if (groundOnly && this.h[i] > 0.01) continue; return this.cellPos(i, out); } return this.cellPos(this.spots[0], out); }
-  nearestOk(i) { if (this.reach[i]) return i; const N = this.N, x = i % N, z = (i / N) | 0; for (let r = 1; r < 12; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue; if (this.reach[nz * N + nx]) return nz * N + nx; } return -1; }
-  // A* from world a to world b; returns array of [x,y,z] waypoints or null
-  path(ax, az, bx, bz) {
-    const N = this.N, h = this.h, ok = this.ok; let s = this.nearestOk(this.cellOf(ax, az)), e = this.nearestOk(this.cellOf(bx, bz)); if (s < 0 || e < 0) return null;
+  nearestOk(i) {
+    if (this.reach[i]) return i; const N = this.N, NN = this.NN, ci = i % NN, x = ci % N, z = (ci / N) | 0, y0 = this.h[i] === this.h[i] ? this.h[i] : 0;
+    for (let r = 1; r < 14; r++) { let best = -1, bd = 1e9; for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue; for (let l = 0; l < this.LY; l++) { const j = l * NN + nz * N + nx; if (!this.reach[j]) continue; const d = Math.abs(this.h[j] - y0); if (d < bd) { bd = d; best = j; } } } if (best >= 0) return best; }
+    return -1;
+  }
+  // A* over floors; returns [x,y,z] waypoints or null. ay/by pick the floor at each end
+  path(ax, ay, az, bx, by, bz) {
+    const N = this.N, NN = this.NN, LY = this.LY, h = this.h, ok = this.ok; let s = this.nearestOk(this.cellOf(ax, az, ay)), e = this.nearestOk(this.cellOf(bx, bz, by)); if (s < 0 || e < 0) return null;
     if (s === e) return [this.cellPos(e, [0, 0, 0])];
-    const sid = ++this._sid, g = this._g, from = this._from, stamp = this._stamp, closed = this._closed, ex = e % N, ez = (e / N) | 0;
+    const sid = ++this._sid, g = this._g, from = this._from, stamp = this._stamp, closed = this._closed, ec = e % NN, ex = ec % N, ez = (ec / N) | 0, eh = h[e];
     const heap = [], hf = []; const push = (i, f) => { let k = heap.length; heap.push(i); hf.push(f); while (k > 0) { const p = (k - 1) >> 1; if (hf[p] <= f) break; heap[k] = heap[p]; hf[k] = hf[p]; k = p; } heap[k] = i; hf[k] = f; };
     const pop = () => { const top = heap[0], li = heap.pop(), lf = hf.pop(), n = heap.length; if (n) { let k = 0; for (; ;) { let c = k * 2 + 1; if (c >= n) break; if (c + 1 < n && hf[c + 1] < hf[c]) c++; if (hf[c] >= lf) break; heap[k] = heap[c]; hf[k] = hf[c]; k = c; } heap[k] = li; hf[k] = lf; } return top; };
+    const near = (cj, y, up, down) => { let best = -1, bd = 1e9; for (let l = 0; l < LY; l++) { const j = l * NN + cj; if (!ok[j]) continue; const dh = h[j] - y; if (dh > up || dh < -down) continue; const ad = Math.abs(dh); if (ad < bd) { bd = ad; best = j; } } return best; };
     g[s] = 0; stamp[s] = sid; from[s] = -1; push(s, 0); let iter = 0, found = false;
-    while (heap.length && iter++ < 9000) {
+    while (heap.length && iter++ < 40000) {
       const i = pop(); if (closed[i] === sid) continue; closed[i] = sid; if (i === e) { found = true; break; }
-      const x = i % N, z = (i / N) | 0;
+      const ci = i % NN, x = ci % N, z = (ci / N) | 0, hi = h[i];
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-        if (!dx && !dz) continue; const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue; const j = nz * N + nx; if (!ok[j] || closed[j] === sid) continue;
-        const dh = h[j] - h[i]; if (dh > STEP + 0.08 || dh < -3.6) continue;
-        if (dx && dz) { const a = z * N + nx, b = nz * N + x; if (!ok[a] || !ok[b] || Math.abs(h[a] - h[i]) > STEP || Math.abs(h[b] - h[i]) > STEP) continue; }
+        if (!dx && !dz) continue; const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+        const j = near(nz * N + nx, hi, STEP + 0.08, 4.8); if (j < 0 || closed[j] === sid) continue; const dh = h[j] - hi;
+        if (dx && dz) { if (near(z * N + nx, hi, STEP, STEP) < 0 || near(nz * N + x, hi, STEP, STEP) < 0) continue; }
         const ng = g[i] + (dx && dz ? 1.414 : 1) + (dh < -STEP ? 3 : 0);
         if (stamp[j] === sid && ng >= g[j]) continue;
-        g[j] = ng; stamp[j] = sid; from[j] = i; const ddx = Math.abs(nx - ex), ddz = Math.abs(nz - ez); push(j, ng + Math.max(ddx, ddz) + 0.414 * Math.min(ddx, ddz));
+        g[j] = ng; stamp[j] = sid; from[j] = i; const ddx = Math.abs(nx - ex), ddz = Math.abs(nz - ez); push(j, ng + Math.max(ddx, ddz) + 0.414 * Math.min(ddx, ddz) + Math.abs(h[j] - eh) * 0.5);
       }
     }
     if (!found) return null;
@@ -1598,13 +1767,13 @@ class GameMap {
 
   // ----- render mesh
   buildMesh(list) {
-    const v = []; const all = list || this.cols.filter((c) => !c.mv).concat(this.deco);
+    const v = []; let mat = 0; const all = list || this.cols.filter((c) => !c.mv).concat(this.deco);
     const quad = (p, n, w, h, shade) => { // p: 4 corners (a,b,c,d) ccw seen from outside; uv a=(0,0) b=(w,0) c=(w,h) d=(0,h)
       const uv = [[0, 0], [w, 0], [w, h], [0, h]];
-      for (const i of [0, 1, 2, 0, 2, 3]) v.push(p[i][0], p[i][1], p[i][2], n[0], n[1], n[2], uv[i][0], uv[i][1], w, h, shade);
+      for (const i of [0, 1, 2, 0, 2, 3]) v.push(p[i][0], p[i][1], p[i][2], n[0], n[1], n[2], uv[i][0], uv[i][1], w, h, shade, mat);
     };
     for (const c of all) {
-      const { x0, y0, z0, x1, y1, z1 } = c, s = c.shade, w = x1 - x0, d = z1 - z0, h = y1 - y0;
+      const { x0, y0, z0, x1, y1, z1 } = c, s = c.shade, w = x1 - x0, d = z1 - z0, h = y1 - y0; mat = c.mat || 0;
       if (c.ramp < 0) {
         quad([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], [0, 1, 0], w, d, s * 1.04);
         quad([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], [0, 0, 1], w, h, s);
@@ -1617,24 +1786,270 @@ class GameMap {
         const H = (x, z) => this.topAtRaw(c, x, z), a = H(x0, z1), b = H(x1, z1), cc = H(x1, z0), dd = H(x0, z0);
         const len = (c.ramp < 2 ? w : d), sl = Math.hypot(len, h), nn = c.ramp === 0 ? [-h / sl, len / sl, 0] : c.ramp === 1 ? [h / sl, len / sl, 0] : c.ramp === 2 ? [0, len / sl, -h / sl] : [0, len / sl, h / sl];
         quad([[x0, a, z1], [x1, b, z1], [x1, cc, z0], [x0, dd, z0]], nn, c.ramp < 2 ? sl : w, c.ramp < 2 ? d : sl, s * 1.04);
-        const side = (p, n) => { const big = 1e3; for (const q of p) v.push(q[0], q[1], q[2], n[0], n[1], n[2], 5, q[1] - y0 + 3, big, big, s); };
+        const side = (p, n) => { const big = 1e3; for (const q of p) v.push(q[0], q[1], q[2], n[0], n[1], n[2], 5, q[1] - y0 + 3, big, big, s, mat); };
         const tri = (p, n) => { side([p[0], p[1], p[2]], n); if (p[3]) side([p[0], p[2], p[3]], n); };
         tri([[x0, y0, z1], [x1, y0, z1], [x1, b, z1], [x0, a, z1]], [0, 0, 1]); tri([[x1, y0, z0], [x0, y0, z0], [x0, dd, z0], [x1, cc, z0]], [0, 0, -1]);
         tri([[x1, y0, z1], [x1, y0, z0], [x1, cc, z0], [x1, b, z1]], [1, 0, 0]); tri([[x0, y0, z0], [x0, y0, z1], [x0, a, z1], [x0, dd, z0]], [-1, 0, 0]);
       }
     }
-    return R.mesh(new Float32Array(v), [[0, 3], [1, 3], [2, 2], [3, 2], [4, 1]]);
+    return R.mesh(new Float32Array(v), [[0, 3], [1, 3], [2, 2], [3, 2], [4, 1], [5, 1]]);
   }
   applyTheme() {
     const h = this.hue, e = R.env, L = toLin, k = MAP_KINDS.find((m) => m.id === this.kind) || MAP_KINDS[0], sat = k.sat;
     e.base = L(hsv(h, 0.62 * sat, 0.78));
     e.zenith = L(hsv(h + 0.04, 0.72, 0.42)); e.horizon = L(hsv(h - 0.03, 0.30, 1.0)).map(v => v * 1.15); e.voidCol = L(hsv(h + 0.06, 0.75, 0.16));
-    e.fogCol = L(hsv(h - 0.02, 0.36 * sat, 0.95)); e.fogDen = 0.000055 * k.fog;
+    e.fogCol = L(hsv(h - 0.02, 0.36 * sat, 0.95)); e.fogDen = 0.000055 * k.fog * Math.pow(48 / ARENA, 1.6);
     e.sunCol = L(hsv(h - 0.08, 0.18, 1.0)).map(v => v * 2.5);
     e.ambSky = L(hsv(h + 0.05, 0.45, 0.72)).map(v => v * 0.75); e.ambGnd = L(hsv(h + 0.1, 0.6, 0.35)).map(v => v * 0.55);
     const ce = Math.cos(this.sunEl); e.sunDir = v3norm([Math.cos(this.sunAz) * ce, Math.sin(this.sunEl), Math.sin(this.sunAz) * ce]);
   }
 }
+
+// ==== 04b_bigmaps.js ====
+// ---------- large two-storey maps (152 m across): upper decks, stairs, several gimmicks each ----------
+MAP_KINDS.push(
+  { id: 'mall', name: '쇼핑몰', sat: 0.75, fog: 1, size: 76 },
+  { id: 'harbor', name: '항구', sat: 0.8, fog: 1.2, size: 76 },
+  { id: 'station', name: '기차역', sat: 0.7, fog: 1.1, size: 76 },
+  { id: 'fortress', name: '성채', sat: 0.85, fog: 1, size: 76 },
+  { id: 'factory', name: '공장', sat: 0.6, fog: 1.3, size: 76 },
+);
+Object.assign(GIMMICKS, {
+  mall: { name: '엘리베이터 · 자동문 · 옥상 점프 패드', desc: '아트리움 승강기로 2층, 주차장 점프 패드로 옥상까지' },
+  harbor: { name: '이동 컨테이너 · 화물 승강기 · 점프 패드', desc: '부두를 오가는 컨테이너 조심, 승강기로 배 갑판에' },
+  station: { name: '달리는 열차 · 엘리베이터 · 자동문', desc: '선로를 지나는 열차에 치이면 크게 다쳐요' },
+  fortress: { name: '성문 · 탑 승강기 · 투석 발사대', desc: '성문이 열렸다 닫히고, 발사대가 성벽 위로 쏘아 올려요' },
+  factory: { name: '증기 기류 · 이동 크레인 · 압착 피스톤', desc: '증기를 타고 통로로, 크레인 발판을 타고 공장을 가로질러요' },
+});
+
+Object.assign(GameMap.prototype, {
+  // helpers for the big layouts. everything added through these is mirrored through the centre (like the small maps)
+  bigKit(rng) {
+    const k = this.kit(rng), { R, B, Rp, place } = k, parts = [], M = MAT;
+    const box = (x0, y0, z0, x1, y1, z1, mat, shade) => { const b = B(x0, y0, z0, x1, y1, z1, shade || R(0.93, 1.06), mat); parts.push(b); return b; };
+    const ramp = (x0, y0, z0, x1, y1, z1, dir, mat) => { const b = Rp(x0, y0, z0, x1, y1, z1, dir, mat); parts.push(b); return b; };
+    const rail = (x0, z0, x1, z1, y, gaps, mat) => { // 1 m railing along an edge, minus gaps [[a,b]] measured along it
+      const along = Math.abs(x1 - x0) > Math.abs(z1 - z0), a0 = along ? Math.min(x0, x1) : Math.min(z0, z1), a1 = along ? Math.max(x0, x1) : Math.max(z0, z1), segs = [];
+      let cur = a0; for (const g of (gaps || []).slice().sort((p, q) => p[0] - q[0])) { if (g[0] > cur) segs.push([cur, g[0]]); cur = Math.max(cur, g[1]); } if (cur < a1) segs.push([cur, a1]);
+      for (const [a, b] of segs) { if (b - a < 0.3) continue; if (along) box(a, y, z0 - 0.12, b, y + 1.05, z0 + 0.12, mat || M.metal, 1.1); else box(x0 - 0.12, y, a, x0 + 0.12, y + 1.05, b, mat || M.metal, 1.1); }
+    };
+    // a slab whose top is at y, with pillars down its edges; rails = { s|n|w|e: gaps[] } (s: z0 edge, n: z1, w: x0, e: x1)
+    const deck = (x0, z0, x1, z1, y, mat, rails, pmat, pstep) => {
+      box(x0, y - 0.35, z0, x1, y, z1, mat || M.concrete, 1.0);
+      const st = pstep || 9, nx = Math.max(1, Math.round((x1 - x0) / st)), nz = Math.max(1, Math.round((z1 - z0) / st));
+      if (pmat !== false) for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) { if (i > 0 && i < nx && j > 0 && j < nz) continue; const px = lerp(x0 + 0.45, x1 - 0.45, i / nx), pz = lerp(z0 + 0.45, z1 - 0.45, j / nz); box(px - 0.32, 0, pz - 0.32, px + 0.32, y - 0.35, pz + 0.32, pmat || M.concrete, 0.95); }
+      if (rails) { if (rails.s) rail(x0, z0 + 0.12, x1, z0 + 0.12, y, rails.s); if (rails.n) rail(x0, z1 - 0.12, x1, z1 - 0.12, y, rails.n); if (rails.w) rail(x0 + 0.12, z0, x0 + 0.12, z1, y, rails.w); if (rails.e) rail(x1 - 0.12, z0, x1 - 0.12, z1, y, rails.e); }
+    };
+    // straight wall between two points on a line, with door openings [[a,b,doorH]] (lintel above each door up to h)
+    const wall = (x0, z0, x1, z1, h, t, mat, doors, gapRec) => {
+      const along = Math.abs(x1 - x0) > Math.abs(z1 - z0), a0 = along ? Math.min(x0, x1) : Math.min(z0, z1), a1 = along ? Math.max(x0, x1) : Math.max(z0, z1), c = along ? z0 : x0, segs = [];
+      let cur = a0; for (const d of (doors || []).slice().sort((p, q) => p[0] - q[0])) { if (d[0] > cur) segs.push([cur, d[0], 0]); segs.push([d[0], d[1], d[2] || 3.4]); cur = d[1]; if (gapRec) this._gaps.push({ horiz: along, x0: along ? a0 : c, z0: along ? c : a0, g0: d[0] - a0, g1: d[1] - a0, L: a1 - a0, h: d[2] || 3.4, t: t / 2 - 0.05 }); } if (cur < a1) segs.push([cur, a1, 0]);
+      for (const [a, b, dh] of segs) { const y0 = dh || 0; if (y0 >= h) continue; if (along) box(a, y0, c - t / 2, b, h, c + t / 2, mat); else box(c - t / 2, y0, a, c + t / 2, h, b, mat); }
+    };
+    const lift = (x, z, hw, y0, y1, per, ph, mat) => { const c = this.mover(x - hw, y0 - 0.55, z - hw, x + hw, y0 + 0.02, z + hw, [0, y1 - y0 - 0.02, 0], per || 9, ph || rng(), 0.24); return c; };
+    const flush = () => { place(parts, 0, 0, 0); parts.length = 0; };
+    this._gaps = this._gaps || [];
+    return Object.assign({}, k, { M, parts, box, ramp, rail, deck, wall, lift, flush });
+  },
+  // paint a ground patch (decor only, nothing to bump into)
+  patch(x0, z0, x1, z1, mat, shade, y) { const t = y || 0.012; this.deco.push({ x0, y0: -0.2, z0, x1, y1: t, z1, ramp: -1, shade: shade || 1, mat }, { x0: -x1, y0: -0.2, z0: -z1, x1: -x0, y1: t, z1: -z0, ramp: -1, shade: shade || 1, mat }); },
+  tree(x, z, h, M) { // trunk + layered crown, mirrored
+    const t = 0.28 + h * 0.02; this.box(x - t, 0, z - t, x + t, h, z + t, 0.9).mat = M.bark; this.box(-x - t, 0, -z - t, -x + t, h, -z + t, 0.9).mat = M.bark;
+    for (const [r, y0, y1] of [[2.2, h - 1.2, h + 0.6], [1.5, h + 0.6, h + 1.6]]) for (const sg of [1, -1]) { const c = this.box(sg * x - r, y0, sg * z - r, sg * x + r, y1, sg * z + r, 1.05); c.over = true; c.mat = M.foliage; }
+  },
+
+  // ===== 1) shopping mall: two floors around an atrium, glass bridges, roof; parking lot outside =====
+  gen_mall(rng) {
+    const K = this.bigKit(rng), { R, M, box, ramp, rail, deck, wall, lift, flush } = K, H2 = 4.5, H3 = 9;
+    // building shell (south half; mirrored makes the north) with doors; door gaps get sliding glass doors later
+    wall(-32, -24, 32, -24, H3, 0.6, M.facade, [[-4, 4, 3.4], [-23, -18, 3.4]], true);
+    wall(-32, -24, -32, 24, H3, 0.6, M.facade, [[-4.5, -1.5, 3.4]], true);
+    box(-32.3, H3 - 0.1, -24.3, -31.7, H3 + 0.9, 24.3, M.concrete); box(-32, H3 - 0.1, -24.3, 32, H3 + 0.9, -23.7, M.concrete); // parapet
+    // second floor: south strip + west strip around the atrium (x -12..12, z -9..9)
+    deck(-31.7, -23.7, 31.7, -9, H2, M.paving, null, M.concrete, 10);
+    rail(-12, -9 + 0.12, 12, -9 + 0.12, H2, [[-6, -3], [-11.8, -9.2], [-1.6, 1.6]]);
+    deck(-31.7, -9, -12, 9, H2, M.paving, null, M.concrete, 10);
+    rail(-12 + 0.12, -9, -12 + 0.12, 9, H2, [[4.8, 7.2], [-1.5, 1.5]]);
+    // bridge across the atrium (half; the mirror completes it)
+    deck(-12, -1.5, 0, 1.5, H2, M.metal, null, false); rail(-12, -1.5 + 0.12, 0, -1.5 + 0.12, H2, null, M.metal); rail(-12, 1.5 - 0.12, 0, 1.5 - 0.12, H2, null, M.metal);
+    // roof (skylight over the atrium)
+    box(-31.7, H3 - 0.35, -23.7, 31.7, H3, -9, M.concrete, 0.92); box(-31.7, H3 - 0.35, -9, -12, H3, 9, M.concrete, 0.92);
+    rail(-12, -9 + 0.12, 12, -9 + 0.12, H3, null); rail(-12 + 0.12, -9, -12 + 0.12, 9, H3, null);
+    // escalators: atrium floor -> 2nd floor
+    ramp(-6, 0, -9, -3, H2, 0, 3, M.metal); ramp(-12, 0, 4.8, -3, H2, 7.2, 1, M.metal);
+    // shops under the deck: dividers + counters; kiosks and planters in the atrium
+    for (const x of [-26, -18, -9, 9, 18, 26]) wall(x, -23.7, x, -15.5, H2 - 0.35, 0.3, M.brick);
+    for (const x of [-22, -13.5, 13.5, 22]) box(x - 1.6, 0, -15.6, x + 1.6, 1.1, -14.8, M.wood);
+    box(-27, 0, -6, -24, 1.2, -4.5, M.wood); box(-20, 0, 4, -16.5, 1.2, 5.5, M.wood);
+    for (const [x, z] of [[-8, -5], [-9, 3]]) { box(x - 1.1, 0, z - 1.1, x + 1.1, 0.8, z + 1.1, M.paving); box(x - 0.8, 0.8, z - 0.8, x + 0.8, 2.2, z + 0.8, M.foliage); }
+    box(-1.2, 0, -5.5, 1.2, 1.0, -4.0, M.concrete);
+    // parking lot: cars, lamp posts, trees, a ramp up to the roof
+    for (let i = 0; i < 7; i++) { const x = -52 + i * 7.5 + R(-0.4, 0.4), z = -38 + (i % 2) * 7; const col = 0.7 + rng() * 0.6; box(x - 1, 0, z - 2.2, x + 1, 1.1, z + 2.2, M.metal, col); box(x - 0.85, 1.1, z - 1.1, x + 0.85, 1.75, z + 0.9, M.metal, col * 0.7); }
+    for (const [x, z] of [[-60, -30], [-40, -48], [-20, -48], [0, -48], [20, -48], [40, -48], [60, -30]]) box(x - 0.12, 0, z - 0.12, x + 0.12, 6, z + 0.12, M.metal, 1.2);
+    for (const z of [-60, -66]) for (const x of [-56, -32, -8, 16, 40]) box(x - 3, 0, z - 0.4, x + 3, 0.9, z + 0.4, M.concrete);
+    box(44, 0, -70, 56, 2.6, -62, M.brick); box(-70, 0, -40, -62, 3, -26, M.brick); // sheds
+    flush();
+    this.patch(-31.7, -23.7, 31.7, 0, M.paving, 1.06); // indoor floor tiles
+    for (const [x, z, h] of [[-66, -64, 6], [-46, -60, 5.5], [62, -46, 6.5], [-66, -10, 6], [66, 10, 5]]) this.tree(x, z, h, M);
+    this._big = { H2, H3 };
+  },
+  gim_mall(rng) {
+    for (const [x, z] of [[-10.5, -7.6]]) this.mover(x - 1.2, -0.55, z - 1.2, x + 1.2, 0.02, z + 1.2, [0, 4.48, 0], 9, 0.1, 0.24); // atrium lifts
+    this.slideDoors(rng, 1, 7);
+    this.pad(-46, -30, 0, this.launch(-46, 0, -30, -26, 9, -18, 2.5)); this.pad(10, -58, 0, this.launch(10, 0, -58, 8, 9, -17, 2.5));
+  },
+
+  // ===== 2) harbour: quays, a ship with a deck, warehouses with mezzanines, container stacks with catwalks =====
+  gen_harbor(rng) {
+    const K = this.bigKit(rng), { R, M, box, ramp, rail, deck, wall, flush } = K, H2 = 4.5;
+    // sea at both ends (wadeable), quay edge curb
+    this.patch(-76, -76, 76, -58, M.water, 1, 0.02);
+    box(-76, 0, -58.4, 76, 0.45, -57.6, M.concrete, 0.9);
+    // ship moored at the south quay: hull = solid, deck walkable at 4.5, cabin on top
+    box(-34, 0, -72, 6, H2, -60, M.metal, 0.8); box(-28, H2, -70, -16, 8.5, -62, M.facade); box(-27.5, 8.5, -69.5, -16.5, 8.8, -62.5, M.concrete);
+    rail(-34, -72 + 0.12, 6, -72 + 0.12, H2); rail(-34 + 0.12, -72, -34 + 0.12, -60, H2); rail(6 - 0.12, -72, 6 - 0.12, -60, H2); rail(-34, -60 + 0.12, 6, -60 + 0.12, H2, [[-8, -4], [-31, -27.6]]);
+    ramp(-8, 0, -60, -4, H2, -51, 3, M.metal); // gangway: rises toward the ship
+    for (const x of [-10, -2]) box(x - 1.2, H2, -68, x + 1.2, H2 + 1.2, -65, M.metal); // deck hatches as cover
+    // warehouses (south-east) with a mezzanine and stairs
+    wall(14, -46, 50, -46, 8, 0.5, M.brick, [[24, 30, 4], [38, 44, 4]], true); wall(14, -22, 50, -22, 8, 0.5, M.brick, [[30, 36, 4]]);
+    wall(14, -46, 14, -22, 8, 0.5, M.brick, [[-37, -31, 4]]); wall(50, -46, 50, -22, 8, 0.5, M.brick);
+    box(13.7, 7.7, -46.2, 50.2, 8.05, -21.8, M.metal, 0.85);
+    deck(14.3, -45.7, 49.7, -38, H2, M.metal, { n: [[30, 33.5]] }, M.metal, 9);
+    ramp(30, 0, -38, 33.5, H2, -29, 3, M.metal);
+    for (const [x, z] of [[20, -30], [26, -27], [42, -31], [45, -26]]) box(x - 1.3, 0, z - 1.3, x + 1.3, R(1.2, 2.6), z + 1.3, M.wood);
+    // container stacks with catwalks on top (west)
+    for (let i = 0; i < 4; i++) { const x0 = -66 + i * 9; box(x0, 0, -44, x0 + 6, 2.6, -32, M.metal, 0.7 + rng() * 0.5); box(x0, 2.6, -44, x0 + 6, 5.2, -32, M.metal, 0.7 + rng() * 0.5); }
+    for (let i = 0; i < 3; i++) deck(-60 + i * 9, -39.2, -57 + i * 9, -36.8, 5.2, M.metal, { s: [], n: [] }, false);
+    ramp(-66, 0, -32, -60, 5.2, -21.6, 3, M.metal);
+    // open quay: bollards, cargo, small office
+    for (let x = -60; x <= 60; x += 10) box(x - 0.3, 0.45, -57.9, x + 0.3, 1.1, -57.3, M.metal, 1.1);
+    for (const [x, z, w, d] of [[-30, -42, 3, 2], [-12, -36, 2, 2], [4, -44, 4, 2.4], [-40, -20, 2.4, 2.4], [60, -12, 3, 3], [-20, -8, 2, 4]]) box(x - w, 0, z - d / 2, x + w, R(1.1, 1.6), z + d / 2, M.wood);
+    box(56, 0, -54, 68, 3.4, -46, M.facade); box(-6, 0, -16, 6, 3.2, -10, M.brick);
+    // lighthouse tower with a ramp around? keep: tall tower at the pier end as a landmark
+    box(64, 0.45, -74, 70, 14, -68, M.brick); box(63.6, 14, -74.4, 70.4, 14.4, -67.6, M.concrete);
+    flush();
+    this._big = { H2 };
+  },
+  gim_harbor(rng) {
+    // gantry container shuttling along the quay; cargo lift onto the ship deck; pads up onto the warehouse roof
+    this.mover(-50, 0, -50.6, -44, 2.6, -48.2, [70, 0, 0], 16, 0.1, 0.15);
+    this.mover(-30.2 + 0.1, -0.55, -59.9, -28 + 0.1, 0.02, -57.6, [0, 4.48, 0], 9, 0.3, 0.24);
+    this.pad(8, -34, 0, this.launch(8, 0, -34, 20, 8.05, -34, 2.5));
+    this.slideDoors(rng, 0.7, 8);
+  },
+
+  // ===== 3) railway station: two tracks, platforms, a concourse bridging over the tracks =====
+  gen_station(rng) {
+    const K = this.bigKit(rng), { R, M, box, ramp, rail, deck, wall, flush } = K, P1 = 1.0, H2 = 5.6;
+    // central island platform (half), side platform, station hall behind it
+    box(-62, 0, -6.5, 62, P1, 0, M.paving, 1.02); ramp(-68, 0, -6.5, -62, P1, 0, 0, M.paving);
+    box(-62, 0, -22, 62, P1, -16, M.paving, 1.02); ramp(-68, 0, -22, -62, P1, -16, 0, M.paving);
+    for (let x = -56; x <= 56; x += 14) { box(x - 0.25, P1, -3.5, x + 0.25, P1 + 3.4, -3.0, M.metal); box(x - 0.25, P1, -19.5, x + 0.25, P1 + 3.4, -19, M.metal); } // canopy posts
+    box(-58, P1 + 3.4, -5.5, 58, P1 + 3.65, -1, M.metal, 0.85); box(-58, P1 + 3.4, -21.5, 58, P1 + 3.65, -17, M.metal, 0.85);
+    for (const x of [-40, -12, 22, 48]) box(x - 1.2, P1, -1.4, x + 1.2, P1 + 0.9, -0.6, M.wood); // benches
+    // tracks: sleepers + rails (decor) in z -15..-7.5
+    for (let x = -76; x < 76; x += 1.6) this.deco.push({ x0: x, y0: 0, z0: -13.9, x1: x + 0.5, y1: 0.12, z1: -8.6, ramp: -1, shade: 0.8, mat: MAT.wood }, { x0: -x - 0.5, y0: 0, z0: 8.6, x1: -x, y1: 0.12, z1: 13.9, ramp: -1, shade: 0.8, mat: MAT.wood });
+    for (const z of [-12.6, -9.9]) this.deco.push({ x0: -76, y0: 0.12, z0: z, x1: 76, y1: 0.28, z1: z + 0.12, ramp: -1, shade: 1.3, mat: MAT.metal }, { x0: -76, y0: 0.12, z0: -z - 0.12, x1: 76, y1: 0.28, z1: -z, ramp: -1, shade: 1.3, mat: MAT.metal });
+    // station hall
+    wall(-50, -40, 50, -40, 10, 0.6, M.facade, [[-30, -24, 3.6], [-3, 3, 3.6], [24, 30, 3.6]]); wall(-50, -26, -20, -26, 10, 0.6, M.facade, [[-40, -34, 3.6]], true); wall(20, -26, 50, -26, 10, 0.6, M.facade, [[34, 40, 3.6]], true);
+    wall(-50, -40, -50, -26, 10, 0.6, M.facade); wall(50, -40, 50, -26, 10, 0.6, M.facade);
+    box(-50.3, 9.7, -40.3, 50.3, 10.05, -25.7, M.concrete, 0.9);
+    for (const [x, z] of [[-42, -33], [-20, -31], [20, -35], [42, -32]]) box(x - 2, 0, z - 0.6, x + 2, 1.1, z + 0.6, M.wood);
+    // concourse over the tracks: x -20..20, z -30..0 (mirror closes it), with stairs from both platforms and the hall
+    deck(-20, -30, 20, 0, H2, M.paving, { w: [[-4, -1.6], [-21.6, -16.2], [-6.5, -4.0]], e: [[-3.2, -0.8], [-21.6, -16.2]] }, false);
+    for (const [x, z] of [[-19.4, -5.5], [-7, -5.5], [7, -5.5], [19.4, -5.5], [-19.4, -20.5], [-7, -20.5], [7, -20.5], [19.4, -20.5], [-19.4, -29.4], [19.4, -29.4]]) box(x - 0.35, z < -6 ? (z < -21 ? 0 : P1) : P1, z - 0.35, x + 0.35, H2 - 0.35, z + 0.35, M.concrete, 0.95);
+    ramp(-29.2, P1, -4, -20, H2, -1.6, 0, M.metal); ramp(20, P1, -3.2, 29.2, H2, -0.8, 1, M.metal);
+    ramp(-29.2, P1, -21.4, -20, H2, -16.4, 0, M.metal);
+    box(-12, H2, -26, -6, H2 + 2.4, -22, M.facade); box(6, H2, -12, 12, H2 + 2.4, -8, M.facade); box(-4, H2, -20, 4, H2 + 1.0, -19.2, M.concrete);
+    // outside: car park and fences
+    for (let i = 0; i < 6; i++) { const x = -45 + i * 18 + R(-1, 1), z = -56 + R(-2, 2); box(x - 1, 0, z - 2.2, x + 1, 1.1, z + 2.2, M.metal, 0.6 + rng() * 0.6); box(x - 0.85, 1.1, z - 1.1, x + 0.85, 1.75, z + 0.9, M.metal, 0.5); }
+    for (const x of [-66, -44, -22, 0, 22, 44, 66]) box(x - 4, 0, -66.3, x + 4, 1.4, -65.7, M.concrete);
+    flush();
+    this.patch(-76, -16, 76, -6.5, MAT.ground, 0.7);
+    for (const [x, z, h] of [[-62, -50, 6], [-30, -68, 5.5], [10, -70, 6], [60, -56, 6]]) this.tree(x, z, h, M);
+    this._big = { H2 };
+  },
+  gim_station(rng) {
+    // trains thunder through both tracks (mirrored: opposite directions), lifts platform -> concourse, hall doors
+    this.mover(-118, 0.3, -12.9, -78, 4.0, -9.6, [194, 0, 0], 36, 0.05, 0.32); for (const c of this.movers.slice(-2)) { c.mv.hurt = true; c.mat = MAT.metal; }
+    this.mover(-22.45, 0.45, -6.4, -20.05, 1.02, -4.1, [0, 5.6 - 1.02, 0], 10, 0.4, 0.24);
+    this.slideDoors(rng, 1, 7);
+  },
+
+  // ===== 4) fortress: curtain walls with ramparts, corner towers, gatehouses, a two-storey keep, moat =====
+  gen_fortress(rng) {
+    const K = this.bigKit(rng), { R, M, box, ramp, rail, deck, wall, flush } = K, WH = 6, W = 44, T = 3.6;
+    // south curtain wall (gate gap x -3..3) and west wall (gate z -3..3); walls are solid with a walkway on top
+    box(-W, 0, -W - T / 2, -3, WH, -W + T / 2, M.brick); box(3, 0, -W - T / 2, W, WH, -W + T / 2, M.brick);
+    box(-W - T / 2, 0, -W, -W + T / 2, WH, -3, M.brick); box(-W - T / 2, 0, 3, -W + T / 2, WH, W, M.brick);
+    box(-3, 4.4, -W - T / 2, 3, WH, -W + T / 2, M.brick); box(-W - T / 2, 4.4, -3, -W + T / 2, WH, 3, M.brick); // lintels over the gates (walkway continues)
+    for (let x = -W; x < W; x += 2.2) box(x, WH, -W - T / 2, x + 1.1, WH + 1.0, -W - T / 2 + 0.5, M.brick); // crenellations (outer edge)
+    for (let z = -W; z < -3; z += 2.2) box(-W - T / 2, WH, z, -W - T / 2 + 0.5, WH + 1.0, z + 1.1, M.brick);
+    for (let z = 3; z < W; z += 2.2) box(-W - T / 2, WH, z, -W - T / 2 + 0.5, WH + 1.0, z + 1.1, M.brick);
+    // stairs up to the ramparts along the inside faces
+    ramp(-30, 0, -W + T / 2, -18, WH, -W + T / 2 + 3, 1, M.paving); ramp(-W + T / 2, 0, 14, -W + T / 2 + 3, WH, 26, 3, M.paving);
+    // corner tower (south-west) 10x10, 11 m, ramp-linked to the wall top
+    box(-W - 5, 0, -W - 5, -W + 5, 11, -W + 5, M.brick, 0.9); for (let i = 0; i < 4; i++) box(-W - 5 + i * 2.6, 11, -W - 5, -W - 5 + i * 2.6 + 1.3, 12, -W - 4.5, M.brick);
+    ramp(-W + 5, WH, -W - T / 2, -W + 15, 11, -W + T / 2, 1, M.paving);
+    // keep in the middle: 2 floors (upper gallery at 5) + roof 10
+    wall(-16, -12, 16, -12, 10, 0.8, M.brick, [[-2.5, 2.5, 3.6]], true); wall(-16, -12, -16, 12, 10, 0.8, M.brick, [[-6, -3, 3.6]]);
+    deck(-15.6, -11.6, 15.6, -5, 5, M.wood, { n: [[-15.6, -8], [8, 15.6], [3.5, 6.8]] }, M.brick, 8);
+    deck(-15.6, -5, -8, 5, 5, M.wood, { e: [] }, M.brick, 8);
+    ramp(4.5, 0, -5, 13, 5, -2, 1, M.paving);
+    box(-15.6, 9.65, -11.6, 15.6, 10, -5, M.wood, 0.85); box(-15.6, 9.65, -5, -8, 10, 5, M.wood, 0.85);
+    // courtyard dressing: wells, hay, carts, tents; outside: trees, rocks, a moat ring (wadeable)
+    for (const [x, z] of [[-28, -26], [-24, 20], [24, -30]]) { box(x - 1.6, 0, z - 1.6, x + 1.6, 1.0, z + 1.6, M.paving); }
+    for (const [x, z, w, d, h] of [[-34, -8, 2.5, 1.6, 1.4], [-10, -30, 3, 2, 1.3], [30, -16, 2, 2, 1.6], [-36, 30, 3, 1.4, 1.2], [8, -36, 2.4, 2.4, 1.5]]) box(x - w, 0, z - d, x + w, h, z + d, M.wood);
+    for (const [x, z] of [[-60, -60], [-66, -20], [-58, 30], [-20, -64], [30, -60]]) box(x - 2, 0, z - 1.6, x + 2.2, R(1.4, 2.4), z + 1.8, M.rock);
+    flush();
+    this.patch(-76, -58, 76, -52, MAT.water, 1, 0.02); this.patch(-58, -52, -52, 52, MAT.water, 1, 0.02);
+    for (const [x, z, h] of [[-66, -66, 6], [-70, 40, 6.5], [-30, -70, 5.5], [48, -68, 6], [-68, -40, 5.8], [66, -30, 6]]) this.tree(x, z, h, M);
+    this._big = { H2: WH };
+  },
+  gim_fortress(rng) {
+    // portcullis gates sink and rise; lift inside the corner tower side; catapult pads onto the ramparts / keep roof
+    this.mover(-3, 0, -44.25, 3, 4.38, -43.75, [0, -4.45, 0], 11, 0.1, 0.32);
+    this.mover(-44.25, 0, -3, -43.75, 4.38, 3, [0, -4.45, 0], 11, 0.6, 0.32);
+    this.mover(-42.15, -0.55, -30, -39.75, 0.02, -27.6, [0, 5.98, 0], 9, 0.2, 0.25);
+    this.pad(-20, -24, 0, this.launch(-20, 0, -24, -28, 6, -44, 3)); this.pad(24, 26, 0, this.launch(24, 0, 26, 6, 10, 8, 3));
+    this.slideDoors(rng, 0.6, 8);
+  },
+
+  // ===== 5) factory: two halls with catwalks over machinery, crane platforms, steam vents, presses =====
+  gen_factory(rng) {
+    const K = this.bigKit(rng), { R, M, box, ramp, rail, deck, wall, flush } = K, H2 = 4.5, HH = 12;
+    // west hall x -60..-6, z -32..32 (mirror = east hall)
+    wall(-60, -32, -6, -32, HH, 0.6, M.metal, [[-40, -33, 4.5]], true); wall(-60, 32, -6, 32, HH, 0.6, M.metal, [[-24, -17, 4.5]], true);
+    wall(-60, -32, -60, 32, HH, 0.6, M.brick, [[-4, 4, 4.5]]); wall(-6, -32, -6, 32, HH, 0.6, M.brick, [[-14, -8, 4.5], [10, 16, 4.5]], true);
+    for (let z = -31.7; z < 31.7; z += 12) box(-59.7, HH - 0.35, z, -6.3, HH, Math.min(z + 6, 31.7), M.metal, 0.8); // sawtooth roof strips (light falls through the gaps)
+    // catwalks along the long walls + two cross walks, stairs at the ends
+    deck(-59.4, -31.4, -6.6, -28.4, H2, M.metal, { n: [[-50, -30], [-59.4, -56.4]] }, M.metal, 9);
+    deck(-59.4, 28.4, -6.6, 31.4, H2, M.metal, { s: [[-50, -30], [-12, -9]] }, M.metal, 9);
+    deck(-50, -28.4, -47, 28.4, H2, M.metal, { w: [], e: [[-2, 2], [-11.6, -8.4]] }, M.metal, 9);
+    deck(-33, -28.4, -30, 28.4, H2, M.metal, { w: [[-2, 2], [8.4, 11.6]], e: [] }, M.metal, 9);
+    ramp(-59.4, 0, -28.4, -56.4, H2, -19.4, 3, M.metal);
+    ramp(-12, 0, 19.4, -9, H2, 28.4, 2, M.metal);
+    // machinery blocks between the walkways
+    for (const [x, z, w, d, h] of [[-54, -18, 3, 4, 3.2], [-54, 8, 2.6, 5, 2.4], [-40, -20, 4, 3, 3.6], [-40, 0, 3, 3, 2.2], [-40, 18, 4, 2.4, 3.0], [-22, -16, 3, 4, 2.8], [-22, 6, 4, 3, 3.4], [-15, 20, 2, 2, 1.6], [-24, -26, 3, 1.5, 1.3]]) { box(x - w, 0, z - d, x + w, h, z + d, M.metal, 0.75 + rng() * 0.4); box(x - w * 0.6, h, z - d * 0.4, x + w * 0.6, h + 0.6, z + d * 0.4, M.metal, 0.6); }
+    for (const [x, z] of [[-28, -8], [-45, 12], [-16, -6]]) box(x - 0.7, 0, z - 0.7, x + 0.7, 1.2, z + 0.7, M.wood);
+    // yard between the halls and outside: tanks, pipes, trucks
+    for (const [x, z, r, h] of [[-66, -44, 3, 8], [-56, -46, 2.4, 6], [-20, -48, 3, 9], [-4, -58, 2.4, 5]]) box(x - r, 0, z - r, x + r, h, z + r, M.metal, 0.85);
+    box(-60, 6.5, -46.4, -20, 7.1, -45.6, M.metal, 0.9).over = true;
+    for (let i = 0; i < 3; i++) { const x = -40 + i * 18, z = -64; box(x - 1.3, 0, z - 4, x + 1.3, 2.6, z + 1, M.metal, 0.7); box(x - 1.2, 0, z + 1, x + 1.2, 2.2, z + 3.4, M.metal, 0.5); }
+    for (const [x, z] of [[-2, -20], [3, -40], [-3, 24]]) box(x - 1.5, 0, z - 1.5, x + 1.5, 1.4, z + 1.5, M.wood);
+    flush();
+    this.patch(-59.7, -31.7, -6.3, 31.7, MAT.concrete, 0.9);
+    this._big = { H2 };
+  },
+  gim_factory(rng) {
+    // steam vents carry you up to the catwalks; crane platform rides the hall length at catwalk height; presses pump
+    this.vent(-44.6, -10, 1.4, 6.8, -1, 0, 4.2); this.vent(-35.4, 10, 1.4, 6.8, 1, 0, 4.2);
+    this.mover(-46.8, H2c() - 0.45, -27.8, -33.2, H2c(), -24.8, [0, 0, 52.6], 18, 0.15, 0.2);
+    for (const [x, z] of [[-26, -2], [-18, 14]]) this.mover(x - 1.5, -2.6, z - 1.5, x + 1.5, -0.05, z + 1.5, [0, 2.6, 0], 5, rng(), 0.25);
+    this.slideDoors(rng, 1, 8);
+    function H2c() { return 4.5; }
+  },
+});
 
 // ==== 05_fx.js ====
 // ---------- particles, beams, lights, camera shake ----------
@@ -1915,6 +2330,7 @@ const Snd = {
       case 'hookmiss': this.nz(d, t, 0.25, 'bandpass', 2400, 900, 3, 0.35, 0.02); break;
       case 'jet': this.nz(d, t, 0.12, 'lowpass', 900 * r, 500, 0.6, 0.45, 0.02); break;
       case 'cloak': this.tone(d, t, 0.35, 'sine', 900, 300, 0.18, 0.04); this.tone(d, t, 0.35, 'triangle', 1350, 450, 0.08, 0.04); this.nz(d, t, 0.3, 'highpass', 5000, 0, 1, 0.15, 0.1); wet(0.5); break;
+      case 'heal': this.tone(d, t, 0.25, 'sine', 520, 780, 0.22, 0.02); this.tone(d, t + 0.12, 0.35, 'sine', 780, 1170, 0.18, 0.02); this.nz(d, t, 0.4, 'highpass', 4000, 0, 1, 0.06, 0.1); wet(0.5); break;
       case 'pad': this.tone(d, t, 0.3, 'sine', 180, 700, 0.5, 0.01); this.nz(d, t, 0.35, 'bandpass', 500, 2400, 1, 0.5, 0.02); wet(0.4); break;
       case 'barrier': this.tone(d, t, 0.25, 'sine', 240, 180, 0.25); this.tone(d, t, 0.25, 'sine', 363, 270, 0.15); break;
     }
@@ -2318,7 +2734,7 @@ class Bot {
         }
       }
       this.repathT -= dt;
-      if (!this.path || this.repathT <= 0) { this.path = map.path(p.pos[0], p.pos[2], this.goal[0], this.goal[2]); this.pi = 1; this.repathT = rand(2.5, 4); if (!this.path) { this.goal = null; return; } }
+      if (!this.path || this.repathT <= 0) { this.path = map.path(p.pos[0], p.pos[1], p.pos[2], this.goal[0], this.goal[1] || 0, this.goal[2]); this.pi = 1; this.repathT = rand(2.5, 4); if (!this.path) { this.goal = null; return; } }
       const P = this.path; while (this.pi < P.length && Math.hypot(P[this.pi][0] - p.pos[0], P[this.pi][2] - p.pos[2]) < 0.75) this.pi++;
       if (this.pi >= P.length) { this.goal = null; }
       else {
@@ -2415,7 +2831,7 @@ const Net = {
     pl.kills = this.num(pr.k, 0, 999, 0) | 0; pl.assists = this.num(pr.a, 0, 999, 0) | 0; pl.deaths = this.num(pr.d, 0, 999, 0) | 0; GM.applyPresence(pl, pr); pl.cos = COS.validate(pr.cs);
     const wi = this.num(pr.w, 0, MAX_WID, 0) | 0; if (pl.weapon.id !== wi) pl.weapon = WEAPON_LIST[wi];
     const g = Array.isArray(pr.g) ? pr.g : null, gd = g ? GAD_LIST[this.num(g[0], 0, GAD_LIST.length - 1, 0) | 0] : null;
-    if (gd) { if (pl.gad !== gd.key) { pl.gad = gd.key; pl.gs = Gad.fresh(gd.key); } const f = this.num(g[1], 0, 127, 0) | 0; pl.gs.f = f; pl.gs.hook = (f & 4) && g.length >= 5 ? [this.num(g[2], -60, 60, 0), this.num(g[3], -5, 90, 0), this.num(g[4], -60, 60, 0)] : null; Gad.remote(pl, f); }
+    if (gd) { if (pl.gad !== gd.key) { pl.gad = gd.key; pl.gs = Gad.fresh(gd.key); } const f = this.num(g[1], 0, 255, 0) | 0; pl.gs.f = f; pl.gs.hook = (f & 4) && g.length >= 5 ? [this.num(g[2], -60, 60, 0), this.num(g[3], -5, 90, 0), this.num(g[4], -60, 60, 0)] : null; Gad.remote(pl, f); }
     else if (pl.gad) { pl.gad = null; pl.gs = null; }
     const ph = pr.ph, f = this.num(pr.f, 0, 255, 0) | 0;
     pe.crouch = !!(f & 1); pe.aim = !!(f & 2); pe.ground = !!(f & 4); pe.sprint = !!(f & 8);
@@ -2897,6 +3313,7 @@ const UI = {
     else if (s.key === 'dash') { const mx = Gad.maxCh(s.key); r = '<span class="dots">' + Array.from({ length: mx }, (_, i) => `<i class="${i < s.ch ? 'on' : ''}"></i>`).join('') + '</span>'; }
     else if (s.key === 'jetpack') r = `<span class="bar"><i style="width:${Math.round(s.fuel * 100)}%"></i></span>`;
     else if (s.key === 'grapple') r = s.hook ? '<span class="st on">연결됨</span>' : s.cd > 0 ? `<span class="st">${s.cd.toFixed(1)}초</span>` : '<span class="st on">준비</span>';
+    else if (s.key === 'medkit') r = s.heal > 0 ? '<span class="st on">치료 중</span>' : s.cd > 0 ? `<span class="st">${Math.ceil(s.cd)}초 후 사용</span>` : '<span class="st on">준비</span>';
     else r = s.cloak > 0 ? `<span class="st on">위장 ${s.cloak.toFixed(1)}초</span>` : s.cd > 0 ? `<span class="st">${Math.ceil(s.cd)}초 후 사용</span>` : '<span class="st on">준비</span>';
     if (this.last.gk !== r) { this.last.gk = r; $('gdgRes').innerHTML = r; }
   },
@@ -3045,7 +3462,7 @@ const GM = {
   // land next to a living partner (double chain), otherwise wherever the player picked
   spawnNear(p, pick) {
     const q = this.partner(p); if (!q || (q.state !== 'live' && q.state !== 'drop')) return pick;
-    const a = rand(TAU), c = this.openGround ? null : null; const out = [q.pos[0] + Math.cos(a) * 1.6, 0, q.pos[2] + Math.sin(a) * 1.6]; const i = G.map.nearestOk(G.map.cellOf(out[0], out[2])); if (i >= 0) G.map.cellPos(i, out); return out;
+    const a = rand(TAU), c = this.openGround ? null : null; const out = [q.pos[0] + Math.cos(a) * 1.6, 0, q.pos[2] + Math.sin(a) * 1.6]; const i = G.map.nearestOk(G.map.cellOf(out[0], out[2], q.pos[1])); if (i >= 0) G.map.cellPos(i, out); return out;
   },
   // ---------- juggernaut
   keyOf(p) { if (!p) return ''; if (G.mode === 'online') return p === G.me ? Net.me : p.net || ''; return 'L' + p.id; },
@@ -3077,13 +3494,13 @@ const GM = {
     if (old) this.hillMoved();
   },
   hillMoved() { UI.feed('<b style="color:#ffe14d">◎ 점령 구역</b><i>이 다른 곳으로 옮겨졌어요</i>'); if (G.screen === 'play') UI.toast('점령 구역 이동!', '#ffe14d'); Snd.play('grenadeget', null, 0.5); },
-  addGem(x, z, center) {
-    const m = G.match, i = G.map.nearestOk(G.map.cellOf(x, z)), p = [x, 0, z]; if (i >= 0) { G.map.cellPos(i, p); p[0] += rand(-0.35, 0.35); p[2] += rand(-0.35, 0.35); }
+  addGem(x, z, center, y) {
+    const m = G.match, i = G.map.nearestOk(G.map.cellOf(x, z, y)), p = [x, 0, z]; if (i >= 0) { G.map.cellPos(i, p); p[0] += rand(-0.35, 0.35); p[2] += rand(-0.35, 0.35); }
     m.gems.push({ id: m.nextGem++, x: p[0], y: p[1], z: p[2], c: !!center, t: 0, model: M4.create() }); m.hn++;
   },
   scatterGems(n, x, y, z) {
     n = clamp(n | 0, 0, 40); const m = G.match;
-    for (let k = 0; k < n && m.gems.length < GEM_MAX; k++) { const a = rand(TAU), r = rand(0.8, 2.6 + n * 0.08); this.addGem(x + Math.cos(a) * r, z + Math.sin(a) * r, false); }
+    for (let k = 0; k < n && m.gems.length < GEM_MAX; k++) { const a = rand(TAU), r = rand(0.8, 2.6 + n * 0.08); this.addGem(x + Math.cos(a) * r, z + Math.sin(a) * r, false, y); }
     FX.pickup(x, y + 1, z, [0.6, 0.85, 1]);
   },
   takeGem(g, p) {
@@ -3126,7 +3543,7 @@ const GM = {
       p.chainTaut = ex;
       // snagged (a wall between them, or landed far apart): the chain yanks this end over to the partner
       p.chainOverT = ex > 1.2 ? (p.chainOverT || 0) + dt : 0;
-      if (p.chainOverT > 0.45) { const o = [q.pos[0] - ux * 1.5, 0, q.pos[2] - uz * 1.5], i = G.map.nearestOk(G.map.cellOf(o[0], o[2])); if (i >= 0) { G.map.cellPos(i, o); p.pos[0] = o[0]; p.pos[1] = o[1]; p.pos[2] = o[2]; p.vel[0] = p.vel[2] = 0; p.vel[1] = 2; p.chainOverT = 0; FX.landing(o[0], o[1], o[2], p.c1); if (p === G.me) UI.toast('체인에 끌려왔어요', '#ffd36b'); } }
+      if (p.chainOverT > 0.45) { const o = [q.pos[0] - ux * 1.5, 0, q.pos[2] - uz * 1.5], i = G.map.nearestOk(G.map.cellOf(o[0], o[2], q.pos[1])); if (i >= 0) { G.map.cellPos(i, o); p.pos[0] = o[0]; p.pos[1] = o[1]; p.pos[2] = o[2]; p.vel[0] = p.vel[2] = 0; p.vel[1] = 2; p.chainOverT = 0; FX.landing(o[0], o[1], o[2], p.c1); if (p === G.me) UI.toast('체인에 끌려왔어요', '#ffd36b'); } }
     }
   },
   jugUpkeep(dt) {
@@ -3504,10 +3921,11 @@ const GADGETS = {
   grapple: { id: 2, name: '그래플러', col: [1.0, 0.72, 0.25], keys: { I: ['발사', '조준점에 갈고리를 걸고 끌려가요 · 한 번 더 누르면 놓기', '발사'], K: ['끊기', '줄을 끊고 그 자리에서 떨어져요', '끊기'] } },
   jetpack: { id: 3, name: '제트팩', col: [1.0, 0.48, 0.2], keys: { I: ['상승', '누르는 동안 위로 날아요 (연료 소모)', '상승'], J: ['왼쪽 분사', '누르는 동안 왼쪽으로', '◀분사'], K: ['내려찍기', '공중에서 땅을 내려찍어 주변 적에게 피해', '찍기'], L: ['오른쪽 분사', '누르는 동안 오른쪽으로', '분사▶'] } },
   dash: { id: 4, name: '대시 부츠', col: [0.38, 1.0, 0.72], keys: { I: ['앞 대시', '앞으로 순간 돌진 · 2번까지 충전', '▲대시'], J: ['왼쪽 대시', '왼쪽으로 순간 돌진', '◀대시'], K: ['뒤 대시', '뒤로 순간 돌진', '▼대시'], L: ['오른쪽 대시', '오른쪽으로 순간 돌진', '대시▶'] } },
+  medkit: { id: 6, name: '메디킷', col: [0.45, 1.0, 0.55], keys: { I: ['치료', '2초 동안 체력을 60 회복해요 · 12초마다 다시 사용', '치료'] } },
   cloak: { id: 5, name: '광학 위장', col: [0.72, 0.55, 1.0], keys: { I: ['위장', '6초 동안 거의 투명해져요 · 쏘거나 던지면 풀려요', '위장'] } },
 };
 for (const k in GADGETS) GADGETS[k].key = k;
-const GAD_LIST = [null, GADGETS.wings, GADGETS.grapple, GADGETS.jetpack, GADGETS.dash, GADGETS.cloak];
+const GAD_LIST = [null, GADGETS.wings, GADGETS.grapple, GADGETS.jetpack, GADGETS.dash, GADGETS.cloak, GADGETS.medkit];
 const GAD_KEYS = ['I', 'J', 'K', 'L'];
 const isGad = (kind) => typeof kind === 'string' && kind.slice(0, 2) === 'g_';
 const gadOf = (kind) => GADGETS[kind.slice(2)];
@@ -3516,14 +3934,14 @@ const itemName = (kind) => kind === 'grenade' ? '수류탄' : isGad(kind) ? gadO
 const itemCode = (kind) => kind === 'grenade' ? 9 : isGad(kind) ? 20 + gadOf(kind).id : WEAPONS[kind].id;
 const itemFromCode = (c) => c === 9 ? 'grenade' : c >= 21 && c <= 20 + GAD_LIST.length - 1 ? 'g_' + GAD_LIST[c - 20].key : (WEAPON_LIST[clamp(c | 0, 1, MAX_WID)] || WEAPONS.rifle).key;
 
-// flags (also what other players see): 1 glide · 2 flap · 4 hooked · 8 thrust · 16 cloaked · 32 dash · 64 slam
+// flags (also what other players see): 1 glide · 2 flap · 4 hooked · 8 thrust · 16 cloaked · 32 dash · 64 slam · 128 healing
 const Gad = {
   M: {},
   fresh(key) { return { key, ch: this.maxCh(key), chT: 0, fuel: 1, idleT: 0, cd: 0, hook: null, hookT: 0, miss: null, missT: 0, cloak: 0, flapT: 0, dashT: 0, glide: false, open: true, bank: 0, thrust: 0, slam: false, f: 0, pf: 0, spread: 0, beat: 0, sndT: 0, holdK: null, holdT: 0 }; },
   maxCh(k) { return k === 'dash' ? 2 : 0; },
   equip(p, key) { p.gad = key; p.gs = this.fresh(key); if (p === G.me) UI.gadgetHelp(true); },
   clear(p) { p.gad = null; p.gs = null; if (p === G.me) UI.gadgetHelp(false); },
-  flags(p) { const s = p.gs; if (!s) return 0; if (p.kind === 'remote') return s.f; return (s.glide ? 1 : 0) | (s.flapT > 0 ? 2 : 0) | (s.hook ? 4 : 0) | (s.thrust > 0 ? 8 : 0) | (s.cloak > 0 ? 16 : 0) | (s.dashT > 0 ? 32 : 0) | (s.slam ? 64 : 0); },
+  flags(p) { const s = p.gs; if (!s) return 0; if (p.kind === 'remote') return s.f; return (s.glide ? 1 : 0) | (s.flapT > 0 ? 2 : 0) | (s.hook ? 4 : 0) | (s.thrust > 0 ? 8 : 0) | (s.cloak > 0 ? 16 : 0) | (s.dashT > 0 ? 32 : 0) | (s.slam ? 64 : 0) | (s.heal > 0 ? 128 : 0); },
   cloaked(p) { return !!(p.gs && (this.flags(p) & 16)); },
   // ---- per-frame, for players simulated here (me + bots). returns the gravity multiplier
   update(p, dt) {
@@ -3579,6 +3997,9 @@ const Gad = {
       s.fuel = Math.max(0, s.fuel);
     } else if (k === 'dash') {
       if (s.dashT <= 0) for (const [n, ax, az] of [['I', fx, fz], ['K', -fx, -fz], ['J', -rx, -rz], ['L', rx, rz]]) if (hit(n) && s.ch > 0) { s.ch--; v[0] = ax * 17; v[2] = az * 17; v[1] = p.grounded ? 2 : Math.max(v[1], 1); p.grounded = false; p.padFly = false; p.dashT = 0.24; s.dashT = 0.24; Snd.play('dash', p.pos, 1); break; }
+    } else if (k === 'medkit') {
+      if (s.heal > 0) { const d = Math.min(dt, s.heal); s.heal -= dt; p.hp = Math.min(100, p.hp + 30 * d); if (p.hp >= 100) s.heal = 0; }
+      if (hit('I') && s.cd <= 0 && p.hp < 100 && !(s.heal > 0)) { s.heal = 2; s.cd = 12; Snd.play('heal', p.pos, 1); this.puff(p, 10, 0); }
     } else if (k === 'cloak') {
       if (s.cloak > 0) { s.cloak -= dt; if (s.cloak <= 0) this.uncloak(p); }
       if (hit('I') && s.cd <= 0 && s.cloak <= 0) { s.cloak = 6; s.cd = 16; Snd.play('cloak', p.pos, 0.9); this.puff(p, 14, 0); }
@@ -3616,7 +4037,7 @@ const Gad = {
   // other players: sounds when their gadget state flips on
   remote(p, f) {
     const s = p.gs, was = s.pf; s.pf = f; const on = (b) => (f & b) && !(was & b);
-    if (on(2)) Snd.play('flap', p.pos, 0.8); if (on(4)) Snd.play('hook', p.pos, 0.9); if (on(32)) Snd.play('dash', p.pos, 0.9); if (on(16) || ((was & 16) && !(f & 16))) Snd.play('cloak', p.pos, 0.6);
+    if (on(2)) Snd.play('flap', p.pos, 0.8); if (on(128)) Snd.play('heal', p.pos, 0.8); if (on(4)) Snd.play('hook', p.pos, 0.9); if (on(32)) Snd.play('dash', p.pos, 0.9); if (on(16) || ((was & 16) && !(f & 16))) Snd.play('cloak', p.pos, 0.6);
   },
   // ---- map zones: jump pads and updraft vents (for players simulated here)
   zones(p, dt) {
@@ -3631,6 +4052,11 @@ const Gad = {
       if (p.gs && p.gs.hook) this.release(p, false); Snd.play('pad', p.pos, 1); FX.landing(q.x, q.y, q.z, [1.6, 1.3, 0.4]); if (p === G.me) { G.netEvent('pd'); FX.shake = Math.max(FX.shake, 0.25); }
       break;
     }
+    // fast movers marked hurt (trains): getting hit knocks you aside and hurts a lot
+    p.trainT = Math.max(0, (p.trainT || 0) - dt);
+    if (p.trainT <= 0) for (const c of m.movers) { const mv = c.mv; if (!mv.hurt || Math.abs(mv.dx) + Math.abs(mv.dz) < 0.08) continue; const r = P_RADIUS + 0.25; if (p.pos[0] < c.x0 - r || p.pos[0] > c.x1 + r || p.pos[2] < c.z0 - r || p.pos[2] > c.z1 + r || p.pos[1] > c.y1 || p.pos[1] + 1.8 < c.y0) continue;
+      const cz = (c.z0 + c.z1) / 2, side = p.pos[2] < cz ? -1 : 1; p.trainT = 1.2; p.vel[0] = Math.sign(mv.dx) * 9; p.vel[2] = side * 11; p.vel[1] = 6; p.grounded = false; p.pos[2] = side < 0 ? c.z0 - r - 0.05 : c.z1 + r + 0.05;
+      p.damage(55, null, false, 'grenade', [0, 0, side]); Snd.play('thud', p.pos, 1); Snd.play('explosion', p.pos, 0.4); if (p === G.me) FX.shake = Math.max(FX.shake, 1.2); break; }
     for (const q of m.vents) {
       if (Math.hypot(p.pos[0] - q.x, p.pos[2] - q.z) > q.r || p.pos[1] > q.h) continue;
       p.vel[1] = Math.min(p.vel[1] + 52 * dt, 10.5); if (p.vel[1] > 0) p.grounded = false; p.padFly = false;
@@ -3649,6 +4075,7 @@ const Gad = {
     else if (k === 'dash' && !t && s.ch > 1 && Math.random() < 0.06) { inp.gI = true; b.gadT = 2; }
     else if (k === 'wings' && t && Math.random() < 0.18) { inp.gI = true; b.gadT = 1.2; }
     else if (k === 'jetpack' && t && s.fuel > 0.7 && Math.random() < 0.12) { s.holdK = 'gI'; s.holdT = 0.7; b.gadT = 3; }
+    else if (k === 'medkit' && s.cd <= 0 && p.hp < (t ? 45 : 70)) { inp.gI = true; b.gadT = 2; }
     else if (k === 'cloak' && t && s.cd <= 0 && Math.hypot(t.pos[0] - p.pos[0], t.pos[2] - p.pos[2]) > 10 && Math.random() < 0.2) { inp.gI = true; b.gadT = 3; }
   },
   // ---- meshes
@@ -3662,9 +4089,12 @@ const Gad = {
     this.M.launcher = M(launcher);
     this.M.boot = M([[-0.075, -0.075, -0.075, 0.075, 0.075, 0.075, [0.4, 1.0, 0.75]]]);
     this.M.device = M([[-0.09, -0.09, -0.04, 0.09, 0.09, 0.03, Gm], [-0.05, -0.05, 0.03, 0.05, 0.05, 0.05, [0.75, 0.55, 1.0]]]);
+    const MK = [[-0.11, -0.08, -0.06, 0.11, 0.08, 0.06, [0.95, 0.96, 0.97]], [-0.075, -0.022, 0.06, 0.075, 0.022, 0.07, [0.35, 1.0, 0.45]], [-0.022, -0.075, 0.06, 0.022, 0.075, 0.07, [0.35, 1.0, 0.45]], [-0.04, 0.08, -0.02, 0.04, 0.11, 0.02, D]];
+    this.M.medkit = M(MK); this._MK = MK;
     this.M.cable = M([[-0.5, -0.5, -0.5, 0.5, 0.5, 0.5, [0.95, 0.75, 0.3]]]);
     // pickups (shown on the item pads)
     const S = (list, k) => list.map((b) => [b[0] * k, b[1] * k, b[2] * k, b[3] * k, b[4] * k, b[5] * k, b[6]]);
+    GunMeshes.g_medkit = M(S(this._MK, 1.7));
     GunMeshes.g_wings = M(S(wing(1), 0.32).concat(S(wing(-1), 0.32)));
     GunMeshes.g_jetpack = M(S(pack, 0.85));
     GunMeshes.g_grapple = M(S(launcher, 1.4));
@@ -3703,6 +4133,9 @@ const Gad = {
     } else if (s.key === 'dash') {
       if (!fpv) for (const b of ['LeftFoot', 'RightFoot']) { const ft = bone(b, [0, 0, 0]); part(this.M.boot, ft[0], ft[1] - 0.02, ft[2], null, null, (f & 32) ? 1.5 : 0.7); }
       if (f & 32) for (let i = 0; i < 3; i++) FX.spawn({ x: p.pos[0] + rand(-0.3, 0.3), y: p.pos[1] + rand(0.1, 1.6), z: p.pos[2] + rand(-0.3, 0.3), vx: -p.vel[0] * 0.2, vz: -p.vel[2] * 0.2, life: 0.25, s0: 0.12, s1: 0.02, c: [0.8, 2.6, 1.6] });
+    } else if (s.key === 'medkit') {
+      const hp = bone('Hips', [0, 0, 0]); if (!fpv) part(this.M.medkit, hp[0] - 0.2, hp[1] + 0.02, hp[2] - 0.05, null, null, (f & 128) ? 1.2 : 0.3);
+      if ((f & 128) && G.frame % 2 === 0) FX.spawn({ x: p.pos[0] + rand(-0.45, 0.45), y: p.pos[1] + rand(0.2, 1.4), z: p.pos[2] + rand(-0.45, 0.45), vy: rand(0.8, 1.8), life: rand(0.5, 0.9), s0: 0.09, s1: 0.02, c: [0.6, 2.6, 0.9] });
     } else if (s.key === 'cloak') {
       if (!fpv) part(this.M.device, sp[0], sp[1] + 0.02, sp[2] - 0.17, null, null, (f & 16) ? 1.2 : 0.5);
     }
@@ -3796,7 +4229,7 @@ const G = {
   },
   loadMap(seed) {
     if (this.map && this.map.seed === (seed >>> 0) && this.mapMesh) return;
-    if (this.mapMesh) this.mapMesh.free(); if (this.map) for (const c of this.map.movers || []) if (c.mesh) { c.mesh.free(); c.mesh = null; } this.map = new GameMap(seed); this.mapMesh = this.map.buildMesh(); UI.buildMinimap(); FX.reset();
+    if (this.mapMesh) this.mapMesh.free(); if (this.map) for (const c of this.map.movers || []) if (c.mesh) { c.mesh.free(); c.mesh = null; } this.map = new GameMap(seed); this.mapMesh = this.map.buildMesh(); this.aoTex = R.dataTex(this.map.aoN, this.map.aoN, this.map.aoData, this.aoTex); UI.buildMinimap(); FX.reset();
   },
   resetRound() { const m = this.match; m.items = []; m.grenades = []; m.rockets = []; m.time = ROUND_TIME; m.wT = 9; m.adT = 6; m.gT = rand(6, 10); m.taken.clear(); m.lastSec = -1; this.nearItem = null; $('feed').innerHTML = ''; UI.feedItems = []; },
   startLocal() {
@@ -4129,7 +4562,7 @@ const G = {
   // moving blocks (own meshes, slid by an offset), jump pads, updraft columns
   drawGimmicks(sc, top) {
     const map = this.map; sc.movers = sc.movers || []; sc.movers.length = 0;
-    for (const c of map.movers) { if (!c.mesh) c.mesh = map.buildMesh([Object.assign({}, c.mv.b, { ramp: -1, shade: c.shade })]); const m = c.mv; const e = c._rd || (c._rd = { mesh: c.mesh, off: [0, 0, 0], model: M4.create() }); e.off[0] = m.ox; e.off[1] = m.oy; e.off[2] = m.oz; M4.translate(e.model, m.ox, m.oy, m.oz); sc.movers.push(e); }
+    for (const c of map.movers) { if (c.x0 > ARENA + 1 || c.x1 < -ARENA - 1 || c.z0 > ARENA + 1 || c.z1 < -ARENA - 1) continue; /* parked off the map (trains) */ if (!c.mesh) c.mesh = map.buildMesh([Object.assign({}, c.mv.b, { ramp: -1, shade: c.shade, mat: c.mat })]); const m = c.mv; const e = c._rd || (c._rd = { mesh: c.mesh, off: [0, 0, 0], model: M4.create() }); e.off[0] = m.ox; e.off[1] = m.oy; e.off[2] = m.oz; M4.translate(e.model, m.ox, m.oy, m.oz); sc.movers.push(e); }
     const t = this.now, k = top ? 2.5 : 1;
     for (const q of map.pads) {
       const e = q._rd || (q._rd = { mesh: GunMeshes.pad, model: M4.create(), tint: [1, 1, 1], emis: 1 }); M4.yawPos(e.model, 0, q.x, q.y, q.z, 2.1 * q.r / 1.25); const pulse = 0.5 + 0.5 * Math.sin(t * 5 + q.x);
@@ -4147,10 +4580,10 @@ const G = {
     const map = stage ? this.stage.map : this.map; if (this._theme !== map) { this._theme = map; map.applyTheme(); map.wx = map.wx || new Weather(map.weather, map.seed); map.wx.applyEnv(); this.weather = map.wx; }
     sc.vm = null;
     if (stage) {
-      sc.mapMesh = this.stage.mesh; sc.shadowFocus[0] = 0; sc.shadowFocus[1] = 0; sc.shadowFocus[2] = 0; sc.shadowRadius = 16; R.env.fogDen = 0.00035;
+      sc.mapMesh = this.stage.mesh; sc.aoTex = null; sc.shadowFocus[0] = 0; sc.shadowFocus[1] = 0; sc.shadowFocus[2] = 0; sc.shadowRadius = 16; R.env.fogDen = 0.00035;
       for (const d of this.display) { sc.chars.push(d.rd); COS.draw(d, sc); if (d.showGun) sc.props.push(d.gun); }
     } else {
-      sc.mapMesh = this.mapMesh; const top = this.screen === 'drop'; R.env.fogDen = top ? 0.000004 : 0.00006;
+      sc.mapMesh = this.mapMesh; sc.aoTex = this.aoTex; const top = this.screen === 'drop'; R.env.fogDen = (top ? 0.000004 : 0.00006) * Math.pow(48 / ARENA, 1.6);
       if (top) { sc.shadowFocus[0] = 0; sc.shadowFocus[1] = 0; sc.shadowFocus[2] = 0; sc.shadowRadius = ARENA * 1.5; } else { const d = 16; sc.shadowFocus[0] = cam.eye[0] + (cam.target[0] - cam.eye[0]) * d; sc.shadowFocus[1] = Math.min(cam.eye[1], 6); sc.shadowFocus[2] = cam.eye[2] + (cam.target[2] - cam.eye[2]) * d; sc.shadowRadius = 46; }
       for (const p of this.players) {
         if (p === this.me && this.eyeOK && this.fpv && (p.state === 'live' || p.state === 'drop')) { p.rd.noShadow = false; p.rd.hidden = true; sc.chars.push(p.rd); continue; }

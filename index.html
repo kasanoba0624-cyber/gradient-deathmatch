@@ -1256,12 +1256,12 @@ const MAP_KINDS = [ // each round picks one: different layouts, not just a diffe
   { id: 'city', name: '도시 블록', sat: 0.7, fog: 1.8 },
   { id: 'canyon', name: '협곡', sat: 1.15, fog: 1.2 },
   { id: 'yard', name: '컨테이너 야드', sat: 0.85, fog: 1.3 },
-  { id: 'temple', name: '신전 유적', sat: 0.6, fog: 1.1 },
+  { id: 'temple', name: '신전 유적', sat: 0.6, fog: 1.1, zombies: true },
   { id: 'maze', name: '미로 정원', sat: 0.9, fog: 1 },
   { id: 'towers', name: '요새 탑', sat: 0.8, fog: 1.4 },
   { id: 'arena', name: '원형 경기장', sat: 1, fog: 0.9 },
-  { id: 'forest', name: '기둥 숲', sat: 0.95, fog: 1.6 },
-  { id: 'bunker', name: '벙커', sat: 0.55, fog: 1.2 },
+  { id: 'forest', name: '기둥 숲', sat: 0.95, fog: 1.6, zombies: true },
+  { id: 'bunker', name: '벙커', sat: 0.55, fog: 1.2, zombies: true },
 ];
 
 const GIMMICKS = {
@@ -1269,12 +1269,12 @@ const GIMMICKS = {
   city: { name: '엘리베이터', desc: '건물 옆 승강기를 타면 옥상까지 올라가요' },
   canyon: { name: '상승 기류', desc: '바람 기둥에 들어가면 고원 위로 떠올라요' },
   yard: { name: '이동 컨테이너', desc: '가운데 통로를 컨테이너가 오가요 · 밀리지 않게 조심' },
-  temple: { name: '솟는 돌기둥', desc: '돌기둥이 오르내려요 · 올라타서 높은 곳을 차지하세요' },
+  temple: { name: '솟는 돌기둥 · 좀비', desc: '돌기둥이 오르내려요 · 올라타서 높은 곳을 차지하세요 · 좀비 처치는 0.1킬' },
   maze: { name: '움직이는 울타리', desc: '울타리 문이 저절로 열렸다 닫혀요' },
   towers: { name: '탑 사이 발사대', desc: '발사대를 밟으면 다른 탑 꼭대기로 날아가요' },
   arena: { name: '회전 발판', desc: '경기장을 도는 발판에 올라타세요' },
-  forest: { name: '점프 버섯', desc: '버섯을 밟으면 나무 위로 튀어 올라요' },
-  bunker: { name: '자동문', desc: '방 사이 문이 저절로 열리고 닫혀요' },
+  forest: { name: '점프 버섯 · 좀비', desc: '버섯을 밟으면 나무 위로 튀어 올라요 · 좀비 처치는 0.1킬' },
+  bunker: { name: '자동문 · 좀비', desc: '방 사이 문이 저절로 열리고 닫혀요 · 좀비 처치는 0.1킬' },
 };
 
 const MAT = { grid: 0, concrete: 1, brick: 2, metal: 3, wood: 4, rock: 5, foliage: 6, facade: 7, paving: 8, ground: 9, sand: 10, bark: 11, water: 12, asphalt: 13, lava: 14, tile: 15 };
@@ -1900,14 +1900,14 @@ MAP_KINDS.push(
   { id: 'mall', name: '쇼핑몰', sat: 0.75, fog: 1, size: 76 },
   { id: 'harbor', name: '항구', sat: 0.8, fog: 1.2, size: 76 },
   { id: 'station', name: '기차역', sat: 0.7, fog: 1.1, size: 76 },
-  { id: 'fortress', name: '성채', sat: 0.85, fog: 1, size: 76 },
+  { id: 'fortress', name: '성채', sat: 0.85, fog: 1, size: 76, zombies: true },
   { id: 'factory', name: '공장', sat: 0.6, fog: 1.3, size: 76 },
 );
 Object.assign(GIMMICKS, {
   mall: { name: '엘리베이터 · 자동문 · 옥상 점프 패드', desc: '아트리움 승강기로 2층, 주차장 점프 패드로 옥상까지' },
   harbor: { name: '이동 컨테이너 · 화물 승강기 · 점프 패드', desc: '부두를 오가는 컨테이너 조심, 승강기로 배 갑판에' },
   station: { name: '달리는 열차 · 엘리베이터 · 자동문', desc: '선로를 지나는 열차에 치이면 크게 다쳐요' },
-  fortress: { name: '성문 · 탑 승강기 · 투석 발사대', desc: '성문이 열렸다 닫히고, 발사대가 성벽 위로 쏘아 올려요' },
+  fortress: { name: '성문 · 탑 승강기 · 투석 발사대 · 좀비', desc: '성문이 열렸다 닫히고, 발사대가 성벽 위로 쏘아 올려요 · 좀비 처치는 0.1킬' },
   factory: { name: '증기 기류 · 이동 크레인 · 압착 피스톤', desc: '증기를 타고 통로로, 크레인 발판을 타고 공장을 가로질러요' },
 });
 
@@ -3658,7 +3658,7 @@ const Input = {
       if (e.repeat) { if (['Tab', 'Space'].includes(e.code)) e.preventDefault(); return; }
       this.keys[e.code] = true; Snd.init();
       if (G.screen === 'play' || G.screen === 'dead' || G.screen === 'drop') {
-        if (['Tab', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyI', 'KeyJ', 'KeyK', 'KeyL', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+        if (['Tab', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'KeyQ', 'KeyZ', 'KeyX', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
         if (e.code === 'KeyC') this.crouch = !this.crouch;
         if (e.code === 'KeyR') this.pulse('reload'); if (e.code === 'KeyT') this.pulse('swap'); if (e.code === 'KeyV') this.pulse('melee'); if (e.code === 'KeyF') G.toggleView(); if (e.code === 'KeyG') this.pulse('grenade');
         if (e.code === 'Escape' || e.code === 'KeyP') UI.togglePause();
@@ -3674,11 +3674,12 @@ const Input = {
       if (G.screen !== 'play') return;
       if (!this.locked) { this.lock(); if (document.pointerLockElement !== cv && e.button === 0 && this.lockOK !== false) return; }
       const fb = G.settings.swapFire ? 0 : 2, ab = G.settings.swapFire ? 2 : 0;
+      if (e.button === 3 || e.button === 4) { e.preventDefault(); if (e.button === 3) this.mb4 = true; else this.mb5 = true; return; } // mouse side buttons: gadget E / Q
       if (e.button === ab) this.aim = true;
       else if (e.button === fb) { if (e.shiftKey && G.me && G.me.grenades > 0) this.pulse('grenade'); else this.fire = true; }
       e.preventDefault();
     });
-    addEventListener('mouseup', (e) => { const fb = G.settings.swapFire ? 0 : 2; if (e.button === fb) this.fire = false; else if (e.button === 0 || e.button === 2) this.aim = false; });
+    addEventListener('mouseup', (e) => { if (e.button === 3 || e.button === 4) { e.preventDefault(); if (e.button === 3) this.mb4 = false; else this.mb5 = false; return; } const fb = G.settings.swapFire ? 0 : 2; if (e.button === fb) this.fire = false; else if (e.button === 0 || e.button === 2) this.aim = false; });
     // mouse look: plain mousemove movementX/Y under an ordinary pointer lock - the same path as the web (artifact) version,
     // so the feel and sensitivity match it. only a stray spike right after locking is dropped
     addEventListener('mousemove', (e) => {
@@ -3755,7 +3756,7 @@ const Input = {
     if (inp.jump && this.crouch) { this.crouch = false; $('tCrouch').classList.remove('on'); }
     inp.aim = this.aim || this.aimToggle; inp.fire = this.fire || this.fireTouch;
     for (const n of ['reload', 'swap', 'melee', 'grenade']) { inp[n] = this.pulses[n] > 0; if (this.pulses[n] > 0) this.pulses[n]--; }
-    for (const n of GAD_KEYS) inp['g' + n] = !!k['Key' + n] || !!this.btn['g' + n];
+    for (const n of GAD_KEYS) inp['g' + n] = !!k[GAD_BIND[n]] || !!this.btn['g' + n] || (n === 'I' && !!this.mb4) || (n === 'K' && !!this.mb5);
   },
 };
 
@@ -3817,7 +3818,7 @@ const UI = {
   syncQual() { for (const b of $('qual').children) b.setAttribute('aria-pressed', String(+b.dataset.q === G.settings.quality)); },
   keysHelp() {
     const rows = Input.touch ? [['시점', '1인칭 / 3인칭 전환'], ['왼쪽 화면', '이동 스틱'], ['오른쪽 화면', '드래그로 시점 이동'], ['발사', '누르고 있으면 연사, 누른 채 드래그로 조준'], ['조준', '정조준 켜기/끄기'], ['수류탄', '주운 수류탄 던지기 (최대 3개)'], ['교체', '총·보조 근처에서 나타나요'], ['보조 버튼', '보조(날개·그래플러 등)를 끼면 오른쪽에 나타나요'], ['장전·점프·앉기·근접', '각 버튼']]
-      : [['W A S D', '이동 (멈춰서 쏘면 정확해요)'], ['마우스', '시점'], [G.settings.swapFire ? '우클릭' : '좌클릭', '조준'], [G.settings.swapFire ? '좌클릭' : '우클릭', '발사 (연사하면 위로 튀니 아래로 당기기)'], ['Shift + ' + (G.settings.swapFire ? '좌클릭' : '우클릭'), '수류탄 (없으면 그냥 발사) · G도 가능'], ['R', '재장전'], ['T', '근처의 총·보조로 교체'], ['I J K L', '보조 조작 (날개·그래플러 등) · 끼면 화면 아래에 조작법이 떠요'], ['Space / C', '점프 / 앉기'], ['V', '근접 공격'], ['F', '1인칭 / 3인칭 전환'], ['Tab', '순위표'], ['Esc', '일시정지']];
+      : [['W A S D', '이동 (멈춰서 쏘면 정확해요)'], ['마우스', '시점'], [G.settings.swapFire ? '우클릭' : '좌클릭', '조준'], [G.settings.swapFire ? '좌클릭' : '우클릭', '발사 (연사하면 위로 튀니 아래로 당기기)'], ['Shift + ' + (G.settings.swapFire ? '좌클릭' : '우클릭'), '수류탄 (없으면 그냥 발사) · G도 가능'], ['R', '재장전'], ['T', '근처의 총·보조로 교체'], ['E / Q · Z / X', '보조 조작 (날개·그래플러 등, 왼손으로) · 마우스 옆 버튼 = E / Q · 끼면 화면 아래에 조작법이 떠요'], ['Space / C', '점프 / 앉기'], ['V', '근접 공격'], ['F', '1인칭 / 3인칭 전환'], ['Tab', '순위표'], ['Esc', '일시정지']];
     $('keys').innerHTML = rows.map((r) => `<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('');
   },
   show(name) {
@@ -3911,8 +3912,8 @@ const UI = {
     for (const n of GAD_KEYS) $('tg' + n).hidden = true;
     if (!on || !me || !me.gad) { el.hidden = true; return; }
     const g = GADGETS[me.gad], used = GAD_KEYS.filter((n) => g.keys[n]); el.style.setProperty('--gc', rgbToHex(...g.col));
-    for (const n of used) { const b = $('tg' + n); b.hidden = false; b.innerHTML = `${esc(g.keys[n][2] || g.keys[n][0])}<small>${n}</small>`; }
-    const row = (n) => Input.touch ? `<div><kbd>${esc(g.keys[n][0])}</kbd><span class="d">${esc(g.keys[n][1])}</span></div>` : `<div><kbd>${n}</kbd><b>${esc(g.keys[n][0])}</b><span class="d">${esc(g.keys[n][1])}</span></div>`;
+    for (const n of used) { const b = $('tg' + n); b.hidden = false; b.innerHTML = `${esc(g.keys[n][2] || g.keys[n][0])}`; }
+    const row = (n) => Input.touch ? `<div><kbd>${esc(g.keys[n][0])}</kbd><span class="d">${esc(g.keys[n][1])}</span></div>` : `<div><kbd>${GAD_LABEL[n]}${n === 'I' || n === 'K' ? '<i>/' + (n === 'I' ? '앞' : '뒤') + '버튼</i>' : ''}</kbd><b>${esc(g.keys[n][0])}</b><span class="d">${esc(g.keys[n][1])}</span></div>`;
     $('gdgName').textContent = '보조 · ' + g.name; $('gdgKeys').innerHTML = (Input.touch ? '<div class="tip">오른쪽 보조 버튼으로 조작해요</div>' : '') + used.map(row).join('') + (g.tip ? `<div class="tip">${esc(Input.touch ? g.tip.replace('W 기수 내림 · S 기수 올림', '이동 스틱 앞: 기수 내림, 뒤: 기수 올림') : g.tip)}</div>` : '');
     el.classList.add('big'); el.hidden = false; Snd.play('ui2');
   },
@@ -4550,13 +4551,15 @@ const GADGETS = {
   wings: { id: 1, name: '날개', col: [0.78, 0.9, 1.0], tip: '활공 중: 시점 방향으로 선회 · 기수를 내리면 가속, 들면 속도를 고도로 바꿔 솟구침 · 너무 느려지면 실속 · W 기수 내림 · S 기수 올림', keys: { I: ['날갯짓', '땅에서 누르면 붕 떠오르고, 활공 중에 누르면 속도·고도가 붙어요 · 횟수 제한 없음', '날갯짓'], J: ['왼쪽 급선회', '활공 중 왼쪽으로 크게 꺾어요', '◀선회'], K: ['펼치기/접기', '펼치면 패러글라이더처럼 바람 타고 활공 (공중에서 자동으로 펼침) · 접으면 급강하', '펼침'], L: ['오른쪽 급선회', '활공 중 오른쪽으로 크게 꺾어요', '선회▶'] } },
   grapple: { id: 2, name: '그래플러', col: [1.0, 0.72, 0.25], keys: { I: ['발사', '조준점에 갈고리를 걸고 끌려가요 · 한 번 더 누르면 놓기', '발사'], K: ['끊기', '줄을 끊고 그 자리에서 떨어져요', '끊기'] } },
   jetpack: { id: 3, name: '제트팩', col: [1.0, 0.48, 0.2], keys: { I: ['상승', '누르는 동안 위로 날아요 (연료 소모)', '상승'], J: ['왼쪽 분사', '누르는 동안 왼쪽으로', '◀분사'], K: ['내려찍기', '공중에서 땅을 내려찍어 주변 적에게 피해', '찍기'], L: ['오른쪽 분사', '누르는 동안 오른쪽으로', '분사▶'] } },
-  dash: { id: 4, name: '대시 부츠', col: [0.38, 1.0, 0.72], keys: { I: ['앞 대시', '앞으로 순간 돌진 · 2번까지 충전', '▲대시'], J: ['왼쪽 대시', '왼쪽으로 순간 돌진', '◀대시'], K: ['뒤 대시', '뒤로 순간 돌진', '▼대시'], L: ['오른쪽 대시', '오른쪽으로 순간 돌진', '대시▶'] } },
+  dash: { id: 4, name: '대시 부츠', col: [0.38, 1.0, 0.72], keys: { I: ['대시', 'W A S D로 가는 방향으로 순간 돌진 (가만히 있으면 앞으로) · 2번까지 충전', '▲대시'], J: ['왼쪽 대시', '왼쪽으로 순간 돌진', '◀대시'], K: ['뒤 대시', '뒤로 순간 돌진', '▼대시'], L: ['오른쪽 대시', '오른쪽으로 순간 돌진', '대시▶'] } },
   medkit: { id: 6, name: '메디킷', col: [0.45, 1.0, 0.55], keys: { I: ['치료', '2초 동안 체력을 60 회복해요 · 12초마다 다시 사용', '치료'] } },
   cloak: { id: 5, name: '광학 위장', col: [0.72, 0.55, 1.0], keys: { I: ['위장', '6초 동안 거의 투명해져요 · 쏘거나 던지면 풀려요', '위장'] } },
 };
 for (const k in GADGETS) GADGETS[k].key = k;
 const GAD_LIST = [null, GADGETS.wings, GADGETS.grapple, GADGETS.jetpack, GADGETS.dash, GADGETS.cloak, GADGETS.medkit];
-const GAD_KEYS = ['I', 'J', 'K', 'L'];
+const GAD_KEYS = ['I', 'J', 'K', 'L']; // internal slots: I main, K secondary, J left, L right
+// keyboard: all on the left hand around WASD (the right hand stays on the mouse); mouse side buttons double the two main ones
+const GAD_BIND = { I: 'KeyE', K: 'KeyQ', J: 'KeyZ', L: 'KeyX' }, GAD_LABEL = { I: 'E', K: 'Q', J: 'Z', L: 'X' };
 const isGad = (kind) => typeof kind === 'string' && kind.slice(0, 2) === 'g_';
 const gadOf = (kind) => GADGETS[kind.slice(2)];
 const itemCol = (kind) => kind === 'grenade' ? GRENADE_COL : isGad(kind) ? gadOf(kind).col : WEAPONS[kind].col;
@@ -4626,7 +4629,9 @@ const Gad = {
       if (use) { s.idleT = 0; s.sndT -= dt; if (s.sndT <= 0) { s.sndT = 0.09; Snd.play('jet', p.pos, 0.55); } } else { s.idleT += dt; if (s.idleT > 0.6) s.fuel = Math.min(1, s.fuel + dt * (p.grounded ? 0.45 : 0.16)); }
       s.fuel = Math.max(0, s.fuel);
     } else if (k === 'dash') {
-      if (s.dashT <= 0) for (const [n, ax, az] of [['I', fx, fz], ['K', -fx, -fz], ['J', -rx, -rz], ['L', rx, rz]]) if (hit(n) && s.ch > 0) { s.ch--; v[0] = ax * 17; v[2] = az * 17; v[1] = p.grounded ? 2 : Math.max(v[1], 1); p.grounded = false; p.padFly = false; p.dashT = 0.24; s.dashT = 0.24; Snd.play('dash', p.pos, 1); break; }
+      // E dashes the way you are walking (W/A/S/D), straight ahead when standing still; Q/Z/X still dash back/left/right
+      let mf = (p.inp.f || 0), ms = (p.inp.s || 0), ml = Math.hypot(mf, ms); const ix = ml > 0.2 ? (fx * mf + rx * ms) / ml : fx, iz = ml > 0.2 ? (fz * mf + rz * ms) / ml : fz;
+      if (s.dashT <= 0) for (const [n, ax, az] of [['I', ix, iz], ['K', -fx, -fz], ['J', -rx, -rz], ['L', rx, rz]]) if (hit(n) && s.ch > 0) { s.ch--; v[0] = ax * 17; v[2] = az * 17; v[1] = p.grounded ? 2 : Math.max(v[1], 1); p.grounded = false; p.padFly = false; p.dashT = 0.24; s.dashT = 0.24; Snd.play('dash', p.pos, 1); break; }
     } else if (k === 'medkit') {
       if (s.heal > 0) { const d = Math.min(dt, s.heal); s.heal -= dt; p.hp = Math.min(100, p.hp + 30 * d); if (p.hp >= 100) s.heal = 0; }
       if (hit('I') && s.cd <= 0 && p.hp < 100 && !(s.heal > 0)) { s.heal = 2; s.cd = 12; Snd.play('heal', p.pos, 1); this.puff(p, 10, 0); }

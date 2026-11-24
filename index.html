@@ -2489,7 +2489,7 @@ Object.assign(GameMap.prototype, {
   gim_volcano(rng) {
     this.vent(-6, -22.8, 1.25, 7.8, 0, 1, 5); this.vent(-17.2, 3.5, 1.2, 10.3, 1, 0, 7.5);
     this.hazard({ k: 'erupt', per: 45, ph: 0.55, dur: 6, warn: 4, n: 14, seed: this.seed }, true);
-    for (const [x, z] of [[-32, 14], [32, -14]]) { this.mover(x - 1.5, -0.6, z - 1.5, x + 1.5, 0.3, z + 1.5, [0, 3.2, 0], 7, rng(), 0.3); } this.tag(this.movers.length - 4, 'pillar', { rise: 3 });
+    this.mover(-33.5, -3.4, 12.5, -30.5, 0.3, 15.5, [0, 3.2, 0], 7, rng(), 0.3); this.tag(this.movers.length - 2, 'pillar', { rise: 0 }); // basalt columns rising out of the ground (+ mirrored twin)
   },
 });
 const PD_LP = 3, H2_LAB = 4.48;
@@ -3519,6 +3519,7 @@ const Net = {
     if (!this.mq && this.mqErr && this.mqErr.length) o.nx = this.mqErr.join(',') + ' v10';
     if (this.mq && this.room && this.room.report) o.nx = null;
     if (JSON.stringify(o).length > 3600) { o.e = o.e.slice(-4); if (o.h) { o.h.it = o.h.it.slice(0, 12); if (o.h.gs) o.h.gs = o.h.gs.slice(0, 45); } }
+    if (o.h && o.h.zb && JSON.stringify(o).length > 3600) o.h.zb = o.h.zb.slice(0, 14);
     try { const p = this.room.presence(o); if (p && p.then) p.then(() => { this.perr = null; }, (e) => { this.perr = (e && e.code) || 'err'; if (this.perr === 'invalid_argument') { try { const q = this.room.presence({ e: [], h: o.h ? { r: o.h.r, st: o.h.st, seed: o.h.seed, rem: o.h.rem, n: o.h.n, it: [] } : null }); if (q && q.catch) q.catch(() => { }); } catch (_) { } } }); } catch (e) { this.perr = 'throw'; }
   },
 };
@@ -4776,7 +4777,9 @@ const Gad = {
 // a zombie kill / assist is worth a tenth of a player kill / assist. Online: the host runs them and shares them in its presence.
 GAITS.zwalk = { speed: 0.55, cyc: 4.03, c: Array(8).fill('Zombie_Walk') };
 GAITS.zrun = { speed: 2.9, cyc: 0.8, c: Array(8).fill('Zombie_Run') };
-const ZHP = 70, ZDMG = 20, ZRUN = 3.3, ZWALK = 0.75, ZMAX = 7;
+const ZHP = 70, ZDMG = 20, ZRUN = 3.3, ZWALK = 0.75;
+// how many at once: scales with the map's area (lab 56 -> 16, 64-size maps -> 20)
+const zMax = () => Math.round(clamp(ARENA * ARENA / 205, 12, 22));
 // score in tenths, kept exact
 function addPts(p, f, v) { p[f] = Math.round(((p[f] || 0) + v) * 10) / 10; }
 function fmtK(v) { return String(Math.round((v || 0) * 10) / 10); }
@@ -4864,16 +4867,17 @@ class Zombie extends Player {
 }
 
 const Z = {
-  list: [], nid: 1, spawnT: 2,
+  list: [], nid: 1, spawnT: 1.5, burst: true,
   on() { const k = G.map && MAP_KINDS.find((m) => m.id === G.map.kind); return !!(G.map && ((k && k.zombies) || (typeof window !== 'undefined' && window.__zombies))); },
   sim() { return G.mode === 'local' || (Net.on && Net.isHost); },
   byId(id) { return this.list.find((z) => z.zid === id) || null; },
-  reset() { this.list.length = 0; this.spawnT = 2; },
+  reset() { this.list.length = 0; this.spawnT = 1.5; this.burst = true; },
   live() { let n = 0; for (const z of this.list) if (z.state === 'live') n++; return n; },
   update(dt) {
     if (!G.map) return;
     if (this.sim()) {
-      if (this.on() && G.match.state === 'play') { this.spawnT -= dt; if (this.spawnT <= 0) { this.spawnT = 3 + Math.random() * 2.5; if (this.live() < ZMAX) this.spawn(); } }
+      if (this.on() && G.match.state === 'play') { this.spawnT -= dt; if (this.spawnT <= 0) { // a horde right away, then groups of 2-3 topping it up
+        const n = this.live(), mx = zMax(), k = this.burst ? Math.ceil(mx * 0.6) : 2 + (Math.random() < 0.5 ? 1 : 0); this.burst = false; this.spawnT = 1.6 + Math.random() * 1.4; for (let i = 0; i < k && n + i < mx; i++) this.spawn(); } }
       for (const z of this.list) z.update(dt);
     } else for (const z of this.list) this.mirrorStep(z, dt);
     for (let i = this.list.length - 1; i >= 0; i--) if (this.list[i].state === 'out') this.list.splice(i, 1);
@@ -4903,7 +4907,7 @@ const Z = {
   block() { const r = (v) => Math.round(v * 10) / 10; return this.list.filter((z) => z.state !== 'out').map((z) => [z.zid, r(z.pos[0]), r(z.pos[1]), r(z.pos[2]), r(z.yaw % TAU), Math.max(0, Math.round(z.hp)), z.state === 'dead' ? 1 : z.riseT > 0 ? 2 : 0, z.act | 0]); },
   applyHost(zb) {
     if (this.sim() || !Array.isArray(zb)) return; const seen = new Set(), N = (v, a, b) => (typeof v === 'number' && isFinite(v) ? clamp(v, a, b) : 0);
-    for (const e of zb.slice(0, 16)) {
+    for (const e of zb.slice(0, 32)) {
       if (!Array.isArray(e)) continue; const id = N(e[0], 0, 1e9) | 0; seen.add(id); let z = this.byId(id);
       if (!z) { if (N(e[6], 0, 2) === 1) continue; z = new Zombie(id); z.mirror = true; z.pos[0] = N(e[1], -ARENA, ARENA); z.pos[1] = z.visY = N(e[2], -5, 80); z.pos[2] = N(e[3], -ARENA, ARENA); z.yaw = N(e[4], -10, 10); if (N(e[6], 0, 2) === 2) z.rise(); this.list.push(z); }
       z.net = { x: N(e[1], -ARENA, ARENA), y: N(e[2], -5, 80), z: N(e[3], -ARENA, ARENA), yaw: N(e[4], -10, 10) }; if (z.state === 'live') z.hp = Math.min(z.hp, N(e[5], 0, 999));
